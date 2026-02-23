@@ -115,10 +115,10 @@ Once complete, open `http://<your-server-ip>` in a browser and create your admin
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────┐
-│  Docker Container (privileged, host network/pid)  │
+┌────────────────────────────────────────────────────┐
+│  Docker Container (privileged, host network/pid)   │
 │                                                    │
-│  ┌────────────┐    ┌───────────────────────────┐  │
+│  ┌────────────┐    ┌────────────────────────────┐  │
 │  │   React    │    │     FastAPI Backend        │  │
 │  │  (static)  │───>│                            │  │
 │  │  /static/  │    │  /api/auth     /api/pools  │  │
@@ -132,10 +132,10 @@ Once complete, open `http://<your-server-ip>` in a browser and create your admin
 │                    │  ...26 router modules      │  │
 │                    │                            │  │
 │                    │  SQLite (/data/nas.db)     │  │
-│                    └───────────────────────────┘  │
+│                    └────────────────────────────┘  │
 │                              │                     │
-│                    Host: zfs, samba, nfs, systemd   │
-└──────────────────────────────────────────────────┘
+│                    Host: zfs, samba, nfs, systemd  │
+└────────────────────────────────────────────────────┘
 ```
 
 The container runs in **privileged mode** with **host network and PID namespace** to directly manage ZFS pools, system services, disks, and file sharing on the host.
