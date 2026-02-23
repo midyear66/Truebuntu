@@ -14,9 +14,9 @@ const PRIORITIES = [
 ]
 
 const PRIORITY_COLORS = {
-  '0': 'text-red-700 bg-red-50',
-  '1': 'text-red-600 bg-red-50',
-  '2': 'text-red-500 bg-red-50',
+  '0': 'text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-900/20',
+  '1': 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20',
+  '2': 'text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-900/20',
   '3': 'text-red-500',
   '4': 'text-yellow-600',
   '5': 'text-blue-600',

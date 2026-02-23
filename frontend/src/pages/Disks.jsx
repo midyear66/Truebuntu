@@ -58,7 +58,7 @@ export default function Disks() {
               <div
                 key={d.name}
                 onClick={() => viewSmart(d.name)}
-                className={`p-4 border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedDisk === d.name ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
+                className={`p-4 border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedDisk === d.name ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-l-blue-500' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{d.name}</span>

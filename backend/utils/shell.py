@@ -43,6 +43,7 @@ ALLOWED_COMMANDS = {
     "ethtool",
     "resolvectl",
     "journalctl",
+    "uname",
 }
 
 # Note: Cron jobs and init/shutdown scripts may contain shell metacharacters

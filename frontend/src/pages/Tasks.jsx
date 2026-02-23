@@ -70,7 +70,7 @@ export default function Tasks() {
           Create Task
         </button>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {showCreate && (
         <form onSubmit={createTask} className="bg-white rounded-lg shadow p-5 mb-6">

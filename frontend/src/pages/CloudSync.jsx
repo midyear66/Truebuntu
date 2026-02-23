@@ -106,7 +106,7 @@ export default function CloudSync() {
           {remotes.length === 0 ? (
             <div className="p-4 text-sm text-gray-400 dark:text-gray-500">No remotes configured</div>
           ) : remotes.map(name => (
-            <div key={name} className={`p-4 border-b dark:border-gray-700 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedRemote === name ? 'bg-blue-50' : ''}`} onClick={() => viewRemote(name)}>
+            <div key={name} className={`p-4 border-b dark:border-gray-700 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedRemote === name ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`} onClick={() => viewRemote(name)}>
               <span className="font-medium">{name}</span>
               <div className="flex gap-2">
                 <button onClick={(e) => { e.stopPropagation(); testRemote(name) }} disabled={testing === name} className="text-blue-600 hover:text-blue-800 text-xs">

@@ -31,6 +31,7 @@ import Alerts from './pages/Alerts'
 
 function App() {
   const [user, setUser] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [needsSetup, setNeedsSetup] = useState(false)
   const [checking, setChecking] = useState(true)
 
@@ -45,6 +46,7 @@ function App() {
         }
         const meRes = await api.get('/auth/me')
         setUser(meRes.data.username)
+        setIsAdmin(meRes.data.is_admin)
       } catch (err) {
         // Not logged in
       } finally {
@@ -96,7 +98,7 @@ function App() {
           <Route path="/smart-tests" element={<SmartTests />} />
           <Route path="/snapshot-tasks" element={<SnapshotTasks />} />
           <Route path="/resilver" element={<ResilverPriority />} />
-          <Route path="/users" element={<Users />} />
+          <Route path="/users" element={<Users isAdmin={isAdmin} currentUser={user} />} />
           <Route path="/services" element={<Services />} />
           <Route path="/disks" element={<Disks />} />
           <Route path="/settings" element={<Settings />} />

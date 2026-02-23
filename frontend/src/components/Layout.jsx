@@ -54,6 +54,33 @@ export default function Layout({ children, user }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showPwModal, setShowPwModal] = useState(false)
+  const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm: '' })
+  const [pwError, setPwError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState('')
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPwError('')
+    setPwSuccess('')
+    if (pwForm.new_password !== pwForm.confirm) {
+      setPwError('New passwords do not match')
+      return
+    }
+    try {
+      await api.post('/auth/change-password', {
+        current_password: pwForm.current_password,
+        new_password: pwForm.new_password,
+      })
+      setPwSuccess('Password changed successfully')
+      setPwForm({ current_password: '', new_password: '', confirm: '' })
+      setTimeout(() => setShowPwModal(false), 1500)
+    } catch (err) {
+      setPwError(err.response?.data?.detail || 'Failed to change password')
+    }
+  }
+
   const [expanded, setExpanded] = useState(() => {
     const group = findGroupForPath(location.pathname)
     return group ? new Set([group]) : new Set()
@@ -61,25 +88,20 @@ export default function Layout({ children, user }) {
 
   useEffect(() => {
     const group = findGroupForPath(location.pathname)
-    if (group && !expanded.has(group)) {
-      setExpanded(prev => new Set(prev).add(group))
+    if (group) {
+      setExpanded(new Set([group]))
     }
   }, [location.pathname])
 
   const toggleGroup = (label) => {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(label)) next.delete(label)
-      else next.add(label)
-      return next
-    })
+    setExpanded(prev => prev.has(label) ? new Set() : new Set([label]))
   }
 
   const handleLogout = async () => {
     try {
       await api.post('/auth/logout')
     } catch (e) {}
-    navigate('/login')
+    window.location.href = '/'
   }
 
   return (
@@ -150,13 +172,34 @@ export default function Layout({ children, user }) {
             >
               {theme === 'dark' ? '\u2600' : '\u263E'}
             </button>
-            <span className="text-sm text-gray-700 dark:text-gray-200">{user}</span>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              Logout
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+              >
+                {user}
+                <span className="text-xs">{showUserMenu ? '\u25B4' : '\u25BE'}</span>
+              </button>
+              {showUserMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-50">
+                    <button
+                      onClick={() => { setShowUserMenu(false); setPwError(''); setPwSuccess(''); setPwForm({ current_password: '', new_password: '', confirm: '' }); setShowPwModal(true) }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      Change Password
+                    </button>
+                    <button
+                      onClick={() => { setShowUserMenu(false); handleLogout() }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
@@ -164,6 +207,25 @@ export default function Layout({ children, user }) {
           {children}
         </main>
       </div>
+
+      {showPwModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <form onSubmit={handleChangePassword} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">Change Password</h3>
+            {pwError && <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{pwError}</div>}
+            {pwSuccess && <div className="mb-3 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm rounded">{pwSuccess}</div>}
+            <div className="space-y-3 mb-4">
+              <input type="password" value={pwForm.current_password} onChange={e => setPwForm({...pwForm, current_password: e.target.value})} placeholder="Current password" className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" required />
+              <input type="password" value={pwForm.new_password} onChange={e => setPwForm({...pwForm, new_password: e.target.value})} placeholder="New password (min 8 chars)" className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" required minLength={8} />
+              <input type="password" value={pwForm.confirm} onChange={e => setPwForm({...pwForm, confirm: e.target.value})} placeholder="Confirm new password" className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" required minLength={8} />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowPwModal(false)} className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
+              <button type="submit" className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Change</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

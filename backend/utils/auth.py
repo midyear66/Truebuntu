@@ -76,3 +76,21 @@ def get_current_user(request: Request) -> str:
             detail="Invalid or expired session",
         )
     return username
+
+
+def get_current_admin(request: Request) -> str:
+    username = get_current_user(request)
+    from backend.database import get_db
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT is_admin FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if not row or not row["is_admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required",
+            )
+    finally:
+        db.close()
+    return username
