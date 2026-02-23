@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "/data/nas.db")
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -181,6 +181,34 @@ def init_db():
             db.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (3,),
+            )
+            db.commit()
+
+        if current_version < 4:
+            logger.info("Applying schema v4")
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS zfs_replication_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    source_dataset TEXT NOT NULL,
+                    destination_host TEXT NOT NULL,
+                    destination_port INTEGER NOT NULL DEFAULT 22,
+                    destination_user TEXT NOT NULL DEFAULT 'root',
+                    destination_dataset TEXT NOT NULL,
+                    recursive INTEGER NOT NULL DEFAULT 0,
+                    incremental INTEGER NOT NULL DEFAULT 1,
+                    ssh_key_path TEXT NOT NULL DEFAULT '',
+                    schedule TEXT NOT NULL DEFAULT '0 0 * * *',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    last_run TEXT,
+                    last_result TEXT,
+                    last_snapshot TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+            """)
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (4,),
             )
             db.commit()
 

@@ -57,34 +57,34 @@ export default function ResilverPriority() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
   if (!config) return <div className="text-red-500">Failed to load config</div>
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Resilver Priority</h2>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
-      {success && <div className="mb-4 p-3 bg-green-50 text-green-700 text-sm rounded">{success}</div>}
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Resilver Priority</h2>
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
+      {success && <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm rounded">{success}</div>}
 
-      <form onSubmit={handleSave} className="bg-white rounded-lg shadow p-6 max-w-2xl">
+      <form onSubmit={handleSave} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 max-w-2xl">
         <div className="mb-6">
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" checked={config.enabled} onChange={e => setConfig({...config, enabled: e.target.checked})} />
             Enable resilver priority schedule
           </label>
-          <p className="text-xs text-gray-500 mt-1">When enabled, ZFS resilvering will be given higher priority during the specified time window.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">When enabled, ZFS resilvering will be given higher priority during the specified time window.</p>
         </div>
 
         {config.current_delay !== null && (
-          <div className="mb-6 p-3 bg-gray-50 rounded text-sm">
+          <div className="mb-6 p-3 bg-gray-50 dark:bg-gray-700 rounded text-sm">
             Current resilver delay: <span className="font-mono font-medium">{config.current_delay}</span>
-            <span className="text-gray-500 ml-2">(lower = higher priority, 0 = no throttling)</span>
+            <span className="text-gray-500 dark:text-gray-400 ml-2">(lower = higher priority, 0 = no throttling)</span>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Begin Time</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Begin Time</label>
             <div className="flex gap-2">
               <select value={config.begin_hour} onChange={e => setConfig({...config, begin_hour: parseInt(e.target.value)})} className="border rounded px-3 py-2 text-sm">
                 {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}</option>)}
@@ -96,7 +96,7 @@ export default function ResilverPriority() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">End Time</label>
             <div className="flex gap-2">
               <select value={config.end_hour} onChange={e => setConfig({...config, end_hour: parseInt(e.target.value)})} className="border rounded px-3 py-2 text-sm">
                 {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}</option>)}
@@ -110,7 +110,7 @@ export default function ResilverPriority() {
         </div>
 
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Weekdays</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Weekdays</label>
           <div className="flex gap-2">
             {WEEKDAY_NAMES.map((name, i) => (
               <button
@@ -120,7 +120,7 @@ export default function ResilverPriority() {
                 className={`px-3 py-1.5 text-sm rounded border ${
                   config.weekdays.includes(i + 1)
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
                 {name}

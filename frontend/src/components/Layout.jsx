@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
+import { useTheme } from '../ThemeContext'
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '⊞' },
@@ -11,6 +12,9 @@ const NAV_ITEMS = [
     { path: '/settings', label: 'Settings' },
     { path: '/enclosures', label: 'Enclosures' },
     { path: '/updates', label: 'Updates' },
+    { path: '/network', label: 'Network' },
+    { path: '/logs', label: 'System Logs' },
+    { path: '/alerts', label: 'Email Alerts' },
   ]},
   { label: 'Tasks', icon: '⊘', children: [
     { path: '/cron-jobs', label: 'Cron Jobs' },
@@ -26,6 +30,7 @@ const NAV_ITEMS = [
     { path: '/datasets', label: 'Datasets' },
     { path: '/snapshots', label: 'Snapshots' },
     { path: '/disks', label: 'Disks' },
+    { path: '/replication', label: 'Replication' },
   ]},
   { label: 'Sharing', icon: '⊞', children: [
     { path: '/shares', label: 'SMB Shares' },
@@ -48,6 +53,7 @@ function findGroupForPath(pathname) {
 export default function Layout({ children, user }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { theme, toggle } = useTheme()
   const [expanded, setExpanded] = useState(() => {
     const group = findGroupForPath(location.pathname)
     return group ? new Set([group]) : new Set()
@@ -77,8 +83,8 @@ export default function Layout({ children, user }) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <aside className="w-56 bg-gray-900 text-gray-300 flex flex-col">
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+      <aside className="w-56 bg-gray-900 dark:bg-gray-950 text-gray-300 flex flex-col">
         <div className="p-4 border-b border-gray-700">
           <h1 className="text-lg font-bold text-white">Truebuntu</h1>
         </div>
@@ -134,13 +140,20 @@ export default function Layout({ children, user }) {
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-          <div className="text-sm text-gray-600" id="header-info"></div>
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between">
+          <div className="text-sm text-gray-600 dark:text-gray-300" id="header-info"></div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-700">{user}</span>
+            <button
+              onClick={toggle}
+              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? '\u2600' : '\u263E'}
+            </button>
+            <span className="text-sm text-gray-700 dark:text-gray-200">{user}</span>
             <button
               onClick={handleLogout}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               Logout
             </button>

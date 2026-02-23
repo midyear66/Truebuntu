@@ -159,5 +159,14 @@ def run_smart_test(test_id: int, username: str = Depends(get_current_user)):
     finally:
         db.close()
 
+    if "FAILED" in result_text.upper() or "error" in result_text.lower():
+        try:
+            from backend.utils.email import send_alert
+            send_alert("smart_failures",
+                        f"SMART test issue: {test['name']}",
+                        f"Test: {test['name']}\nDisks: {', '.join(test['disks'])}\nResult: {result_text[:500]}")
+        except Exception:
+            pass
+
     logger.info(f"User '{username}' ran SMART test id={test_id}")
     return {"message": "SMART test executed", "result": result_text[:1000]}

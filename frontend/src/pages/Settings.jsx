@@ -253,7 +253,7 @@ export default function Settings() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Settings</h2>
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Settings</h2>
 
       <div className="flex gap-2 mb-6 flex-wrap">
         {Object.entries(tabLabels).map(([key, label]) => (
@@ -266,38 +266,38 @@ export default function Settings() {
               if (key === 'audit' && !auditLog) loadAuditLog()
               if (key === 'security') load2faStatus()
             }}
-            className={`px-4 py-2 text-sm rounded ${tab === key ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            className={`px-4 py-2 text-sm rounded ${tab === key ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}
           >
             {label}
           </button>
         ))}
       </div>
 
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {/* General */}
       {tab === 'general' && (
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
           <h3 className="text-lg font-semibold mb-4">General Settings</h3>
           {generalLoading ? (
-            <div className="text-gray-500 text-sm">Loading...</div>
+            <div className="text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
           ) : (
             <div className="space-y-4 max-w-lg">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hostname</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Hostname</label>
                 <input
                   type="text"
                   value={hostname}
                   onChange={e => setHostname(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Timezone</label>
                 <select
                   value={timezone}
                   onChange={e => setTimezone(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {timezones.map(tz => (
                     <option key={tz} value={tz}>{tz}</option>
@@ -320,26 +320,26 @@ export default function Settings() {
       {/* NTP */}
       {tab === 'ntp' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="p-4 border-b flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
               <h3 className="text-lg font-semibold">NTP Servers</h3>
-              <button onClick={loadNtp} className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300">Refresh</button>
+              <button onClick={loadNtp} className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">Refresh</button>
             </div>
             {ntpLoading ? (
-              <div className="p-4 text-gray-500 text-sm">Loading...</div>
+              <div className="p-4 text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Address</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">IBurst</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Prefer</th>
-                    <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Address</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">IBurst</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Prefer</th>
+                    <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ntpServers.map(s => (
-                    <tr key={s.address} className="border-t hover:bg-gray-50">
+                    <tr key={s.address} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-4 py-2 font-mono">{s.address}</td>
                       <td className="px-4 py-2">{s.iburst ? 'Yes' : 'No'}</td>
                       <td className="px-4 py-2">{s.prefer ? 'Yes' : 'No'}</td>
@@ -354,24 +354,24 @@ export default function Settings() {
                     </tr>
                   ))}
                   {ntpServers.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-4 text-center text-gray-400">No NTP servers configured</td></tr>
+                    <tr><td colSpan={4} className="px-4 py-4 text-center text-gray-400 dark:text-gray-500">No NTP servers configured</td></tr>
                   )}
                 </tbody>
               </table>
             )}
           </div>
 
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
             <h3 className="text-lg font-semibold mb-4">Add NTP Server</h3>
             <form onSubmit={addNtp} className="flex items-end gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Address</label>
                 <input
                   type="text"
                   value={ntpAddress}
                   onChange={e => setNtpAddress(e.target.value)}
                   placeholder="pool.ntp.org"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -397,9 +397,9 @@ export default function Settings() {
       {/* TrueNAS Import */}
       {tab === 'migrate' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
             <h3 className="text-lg font-semibold mb-2">Import TrueNAS Config</h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Upload your TrueNAS config export (.tar file) to preview and import users, SMB shares,
               NFS exports, snapshot policies, scrub schedules, and cloud sync tasks.
               Credentials (e.g. B2 app keys) are encrypted in the export and must be re-entered after import.
@@ -422,7 +422,7 @@ export default function Settings() {
             </div>
 
             {migResult && (
-              <div className="p-4 bg-green-50 text-green-800 rounded text-sm">
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 rounded text-sm">
                 Migration applied successfully! Imported: {JSON.stringify(migResult.imported)}
               </div>
             )}
@@ -431,18 +431,18 @@ export default function Settings() {
           {preview && (
             <div className="space-y-4">
               {/* Users */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
                   Users ({preview.users?.length || 0})
                 </h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-gray-500 border-b">
+                    <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                       <th className="pb-2 pr-4">Username</th><th className="pb-2 pr-4">UID</th><th className="pb-2">GID</th>
                     </tr></thead>
                     <tbody>
                       {(preview.users || []).filter(u => u.uid >= 1000 || [972].includes(u.uid)).map(u => (
-                        <tr key={u.username} className="border-b last:border-0">
+                        <tr key={u.username} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-medium">{u.username}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{u.uid}</td>
                           <td className="py-1 font-mono text-xs">{u.gid}</td>
@@ -454,21 +454,21 @@ export default function Settings() {
               </div>
 
               {/* SMB Shares */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
                   SMB Shares ({preview.smb_shares?.length || 0})
                 </h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-gray-500 border-b">
+                    <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                       <th className="pb-2 pr-4">Name</th><th className="pb-2 pr-4">Path</th><th className="pb-2">Comment</th>
                     </tr></thead>
                     <tbody>
                       {(preview.smb_shares || []).map(s => (
-                        <tr key={s.name} className="border-b last:border-0">
+                        <tr key={s.name} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-medium">{s.name}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{s.path}</td>
-                          <td className="py-1 text-gray-500">{s.comment || '-'}</td>
+                          <td className="py-1 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -477,21 +477,21 @@ export default function Settings() {
               </div>
 
               {/* NFS Exports */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
                   NFS Exports ({preview.nfs_exports?.length || 0})
                 </h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-gray-500 border-b">
+                    <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                       <th className="pb-2 pr-4">Paths</th><th className="pb-2 pr-4">Hosts</th><th className="pb-2">Map Root</th>
                     </tr></thead>
                     <tbody>
                       {(preview.nfs_exports || []).map(e => (
-                        <tr key={e.id} className="border-b last:border-0">
+                        <tr key={e.id} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-mono text-xs">{e.paths}</td>
                           <td className="py-1 pr-4 text-xs">{e.hosts || '*'}</td>
-                          <td className="py-1 text-xs text-gray-500">{e.maproot_user || '-'}</td>
+                          <td className="py-1 text-xs text-gray-500 dark:text-gray-400">{e.maproot_user || '-'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -500,18 +500,18 @@ export default function Settings() {
               </div>
 
               {/* Cloud Sync */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
                   Cloud Sync Tasks ({preview.cloud_sync_tasks?.length || 0})
                 </h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-gray-500 border-b">
+                    <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                       <th className="pb-2 pr-4">Description</th><th className="pb-2 pr-4">Path</th><th className="pb-2 pr-4">Direction</th><th className="pb-2">Schedule</th>
                     </tr></thead>
                     <tbody>
                       {(preview.cloud_sync_tasks || []).map((t, i) => (
-                        <tr key={i} className="border-b last:border-0">
+                        <tr key={i} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-medium">{t.description}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{t.path}</td>
                           <td className="py-1 pr-4">{t.direction}</td>
@@ -524,8 +524,8 @@ export default function Settings() {
               </div>
 
               {/* Scrub Tasks */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
                   Scrub Tasks ({preview.scrub_tasks?.length || 0})
                 </h4>
                 {(preview.scrub_tasks || []).map((t, i) => (
@@ -553,9 +553,9 @@ export default function Settings() {
       {/* Config Backup/Restore */}
       {tab === 'backup' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
             <h3 className="text-lg font-semibold mb-2">Export Config</h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Download a backup of all snapshot policies, tasks, settings, smb.conf, and /etc/exports.
             </p>
             <button onClick={exportConfig} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
@@ -563,9 +563,9 @@ export default function Settings() {
             </button>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
             <h3 className="text-lg font-semibold mb-2">Import Config</h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Restore from a previously exported config JSON file.
             </p>
             <div className="flex items-center gap-3">
@@ -579,7 +579,7 @@ export default function Settings() {
               </button>
             </div>
             {importResult && (
-              <div className="mt-3 p-3 bg-green-50 text-green-800 rounded text-sm">
+              <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 rounded text-sm">
                 Imported: {JSON.stringify(importResult.imported)}
               </div>
             )}
@@ -589,32 +589,32 @@ export default function Settings() {
 
       {/* Audit Log */}
       {tab === 'audit' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="p-4 border-b flex items-center justify-between">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
             <h3 className="text-lg font-semibold">Audit Log</h3>
-            <button onClick={loadAuditLog} className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300">Refresh</button>
+            <button onClick={loadAuditLog} className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500">Refresh</button>
           </div>
           {auditLoading ? (
-            <div className="p-4 text-gray-500 text-sm">Loading...</div>
+            <div className="p-4 text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Time</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">User</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Action</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Resource</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">IP</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Time</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">User</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Action</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Resource</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">IP</th>
                 </tr>
               </thead>
               <tbody>
                 {(auditLog || []).map(entry => (
-                  <tr key={entry.id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-2 text-xs text-gray-500">{entry.timestamp}</td>
+                  <tr key={entry.id} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{entry.timestamp}</td>
                     <td className="px-4 py-2">{entry.username}</td>
-                    <td className="px-4 py-2"><span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{entry.action}</span></td>
+                    <td className="px-4 py-2"><span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">{entry.action}</span></td>
                     <td className="px-4 py-2 font-mono text-xs">{entry.resource}</td>
-                    <td className="px-4 py-2 text-xs text-gray-500">{entry.ip_address}</td>
+                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{entry.ip_address}</td>
                   </tr>
                 ))}
               </tbody>
@@ -625,17 +625,17 @@ export default function Settings() {
 
       {/* Security (2FA) */}
       {tab === 'security' && (
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
           <h3 className="text-lg font-semibold mb-4">Two-Factor Authentication</h3>
           {tfaLoading ? (
-            <div className="text-gray-500 text-sm">Loading...</div>
+            <div className="text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
           ) : tfaEnabled ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">2FA Active</span>
+                <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">2FA Active</span>
               </div>
               <form onSubmit={disable2fa} className="max-w-sm">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Enter OTP code to disable 2FA</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Enter OTP code to disable 2FA</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -643,7 +643,7 @@ export default function Settings() {
                     onChange={e => setTfaDisableCode(e.target.value)}
                     placeholder="123456"
                     maxLength={6}
-                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                   <button type="submit" className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700">
@@ -651,7 +651,7 @@ export default function Settings() {
                   </button>
                 </div>
               </form>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-400 dark:text-gray-500">
                 If you lose your authenticator, you'll need server-side access to disable 2FA.
               </p>
             </div>
@@ -659,7 +659,7 @@ export default function Settings() {
             <div className="space-y-4">
               {!tfaSetup ? (
                 <div>
-                  <p className="text-sm text-gray-500 mb-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Add an extra layer of security to your account with a TOTP authenticator app.
                   </p>
                   <button onClick={setup2fa} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
@@ -668,14 +668,14 @@ export default function Settings() {
                 </div>
               ) : (
                 <div className="space-y-4 max-w-md">
-                  <p className="text-sm text-gray-600">Scan this QR code with your authenticator app:</p>
-                  <div className="bg-white border rounded p-4 inline-block" dangerouslySetInnerHTML={{ __html: tfaSetup.qr_svg }} />
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Scan this QR code with your authenticator app:</p>
+                  <div className="bg-white dark:bg-gray-800 border rounded p-4 inline-block" dangerouslySetInnerHTML={{ __html: tfaSetup.qr_svg }} />
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Or enter this secret manually:</p>
-                    <code className="text-sm bg-gray-100 px-2 py-1 rounded select-all">{tfaSetup.secret}</code>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Or enter this secret manually:</p>
+                    <code className="text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded select-all">{tfaSetup.secret}</code>
                   </div>
                   <form onSubmit={enable2fa}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Verification code</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Verification code</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -683,7 +683,7 @@ export default function Settings() {
                         onChange={e => setTfaCode(e.target.value)}
                         placeholder="123456"
                         maxLength={6}
-                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       />
                       <button type="submit" className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">
@@ -691,7 +691,7 @@ export default function Settings() {
                       </button>
                     </div>
                   </form>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
                     If you lose your authenticator, you'll need server-side access to disable 2FA.
                   </p>
                 </div>

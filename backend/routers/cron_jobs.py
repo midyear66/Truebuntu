@@ -124,12 +124,14 @@ def run_cron_job(job_id: int, username: str = Depends(get_current_user)):
         db.close()
 
     # Use subprocess directly to allow shell metacharacters in commands
+    success = False
     try:
         proc = subprocess.run(
             ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "sh", "-c", job["command"]],
             capture_output=True, text=True, timeout=300,
         )
         result_text = proc.stdout or proc.stderr or f"Exit code: {proc.returncode}"
+        success = proc.returncode == 0
     except subprocess.TimeoutExpired:
         result_text = "Command timed out after 300s"
     except Exception as e:
@@ -144,6 +146,15 @@ def run_cron_job(job_id: int, username: str = Depends(get_current_user)):
         db.commit()
     finally:
         db.close()
+
+    if not success:
+        try:
+            from backend.utils.email import send_alert
+            send_alert("cron_failures",
+                        f"Cron job failed: {job['name']}",
+                        f"Job: {job['name']}\nCommand: {job['command']}\nResult: {result_text[:500]}")
+        except Exception:
+            pass
 
     logger.info(f"User '{username}' ran cron job id={job_id}")
     return {"message": "Cron job executed", "result": result_text[:1000]}

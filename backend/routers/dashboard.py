@@ -23,6 +23,9 @@ def dashboard():
         "services": _get_service_states(),
         "disk_temps": _get_disk_temps(),
         "upcoming_tasks": _get_upcoming_tasks(),
+        "load_average": _get_load_average(),
+        "memory": _get_memory(),
+        "network": _get_network_stats(),
     }
 
 
@@ -40,10 +43,10 @@ def _get_service_states() -> list[dict]:
     services = ["smbd", "nmbd", "nfs-kernel-server", "ssh", "docker"]
     states = []
     for name in services:
-        result = run(["systemctl", "is-active", name])
+        result = run(["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "systemctl", "is-active", name])
         states.append({
             "name": name,
-            "active": result.stdout.strip(),
+            "active": result.stdout.strip() or "unknown",
         })
     return states
 
@@ -78,3 +81,68 @@ def _get_upcoming_tasks() -> list[dict]:
         return [dict(row) for row in rows]
     finally:
         db.close()
+
+
+def _get_load_average() -> dict:
+    result = run(["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "cat", "/proc/loadavg"])
+    if not result.ok:
+        return {"load1": 0, "load5": 0, "load15": 0}
+    parts = result.stdout.strip().split()
+    return {
+        "load1": float(parts[0]) if len(parts) > 0 else 0,
+        "load5": float(parts[1]) if len(parts) > 1 else 0,
+        "load15": float(parts[2]) if len(parts) > 2 else 0,
+    }
+
+
+def _get_memory() -> dict:
+    result = run(["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "cat", "/proc/meminfo"])
+    if not result.ok:
+        return {}
+    info = {}
+    for line in result.stdout.strip().splitlines():
+        parts = line.split(":")
+        if len(parts) == 2:
+            key = parts[0].strip()
+            val = parts[1].strip().split()[0]
+            try:
+                info[key] = int(val)
+            except ValueError:
+                pass
+    total = info.get("MemTotal", 0)
+    available = info.get("MemAvailable", 0)
+    buffers = info.get("Buffers", 0)
+    cached = info.get("Cached", 0)
+    used = total - available
+    percent = round((used / total) * 100, 1) if total else 0
+    return {
+        "total_kb": total,
+        "available_kb": available,
+        "used_kb": used,
+        "buffers_kb": buffers,
+        "cached_kb": cached,
+        "percent": percent,
+    }
+
+
+def _get_network_stats() -> list[dict]:
+    result = run(["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "cat", "/proc/net/dev"])
+    if not result.ok:
+        return []
+    stats = []
+    for line in result.stdout.strip().splitlines()[2:]:
+        parts = line.split(":")
+        if len(parts) != 2:
+            continue
+        iface = parts[0].strip()
+        if iface == "lo":
+            continue
+        fields = parts[1].split()
+        if len(fields) < 10:
+            continue
+        stats.append({
+            "interface": iface,
+            "rx_bytes": int(fields[0]),
+            "tx_bytes": int(fields[8]),
+        })
+    return stats

@@ -190,5 +190,14 @@ def run_rsync_task(task_id: int, username: str = Depends(get_current_user)):
     finally:
         db.close()
 
+    if not result.ok:
+        try:
+            from backend.utils.email import send_alert
+            send_alert("rsync_failures",
+                        f"Rsync task failed: {task['name']}",
+                        f"Task: {task['name']}\nSource: {task['source']}\nDest: {task['destination']}\nResult: {result_text[:500]}")
+        except Exception:
+            pass
+
     logger.info(f"User '{username}' ran rsync task id={task_id}")
     return {"message": "Rsync task executed", "result": result_text[:1000]}

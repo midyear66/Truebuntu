@@ -38,6 +38,11 @@ ALLOWED_COMMANDS = {
     "crontab",
     "tee",
     "rm",
+    "ip",
+    "netplan",
+    "ethtool",
+    "resolvectl",
+    "journalctl",
 }
 
 # Note: Cron jobs and init/shutdown scripts may contain shell metacharacters

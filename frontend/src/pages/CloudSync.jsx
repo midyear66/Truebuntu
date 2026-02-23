@@ -72,41 +72,41 @@ export default function CloudSync() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Cloud Sync (rclone)</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Cloud Sync (rclone)</h2>
         <button onClick={() => setShowCreate(!showCreate)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
           Add Remote
         </button>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {showCreate && (
-        <form onSubmit={createRemote} className="bg-white rounded-lg shadow p-5 mb-6">
+        <form onSubmit={createRemote} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Remote name" className="border rounded px-3 py-2 text-sm" required />
-            <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="border rounded px-3 py-2 text-sm">
+            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Remote name" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" required />
+            <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100">
               <option value="b2">Backblaze B2</option>
               <option value="s3">Amazon S3</option>
               <option value="sftp">SFTP</option>
               <option value="local">Local</option>
             </select>
-            <input type="text" value={form.config.account || ''} onChange={e => setForm({...form, config: {...form.config, account: e.target.value}})} placeholder="Account / Access Key" className="border rounded px-3 py-2 text-sm" />
-            <input type="password" value={form.config.key || ''} onChange={e => setForm({...form, config: {...form.config, key: e.target.value}})} placeholder="Key / Secret" className="border rounded px-3 py-2 text-sm" />
+            <input type="text" value={form.config.account || ''} onChange={e => setForm({...form, config: {...form.config, account: e.target.value}})} placeholder="Account / Access Key" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
+            <input type="password" value={form.config.key || ''} onChange={e => setForm({...form, config: {...form.config, key: e.target.value}})} placeholder="Key / Secret" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
           </div>
           <button type="submit" className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">Create Remote</button>
         </form>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           {remotes.length === 0 ? (
-            <div className="p-4 text-sm text-gray-400">No remotes configured</div>
+            <div className="p-4 text-sm text-gray-400 dark:text-gray-500">No remotes configured</div>
           ) : remotes.map(name => (
-            <div key={name} className={`p-4 border-b flex items-center justify-between cursor-pointer hover:bg-gray-50 ${selectedRemote === name ? 'bg-blue-50' : ''}`} onClick={() => viewRemote(name)}>
+            <div key={name} className={`p-4 border-b dark:border-gray-700 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedRemote === name ? 'bg-blue-50' : ''}`} onClick={() => viewRemote(name)}>
               <span className="font-medium">{name}</span>
               <div className="flex gap-2">
                 <button onClick={(e) => { e.stopPropagation(); testRemote(name) }} disabled={testing === name} className="text-blue-600 hover:text-blue-800 text-xs">
@@ -119,12 +119,12 @@ export default function CloudSync() {
         </div>
 
         {remoteDetail && (
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
             <h3 className="text-lg font-semibold mb-3">{remoteDetail.name}</h3>
             <div className="space-y-2">
               {Object.entries(remoteDetail.config).map(([k, v]) => (
                 <div key={k} className="flex">
-                  <span className="text-sm text-gray-500 w-32">{k}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 w-32">{k}</span>
                   <span className="text-sm font-mono">{v}</span>
                 </div>
               ))}

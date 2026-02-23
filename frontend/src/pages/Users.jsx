@@ -69,22 +69,22 @@ export default function Users() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Users & Groups</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Users & Groups</h2>
         <div className="flex gap-2">
-          <button onClick={() => setTab('users')} className={`px-3 py-1 text-sm rounded ${tab === 'users' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+          <button onClick={() => setTab('users')} className={`px-3 py-1 text-sm rounded ${tab === 'users' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}>
             Users ({users.length})
           </button>
-          <button onClick={() => setTab('groups')} className={`px-3 py-1 text-sm rounded ${tab === 'groups' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+          <button onClick={() => setTab('groups')} className={`px-3 py-1 text-sm rounded ${tab === 'groups' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}>
             Groups ({groups.length})
           </button>
         </div>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {tab === 'users' && (
         <>
@@ -95,7 +95,7 @@ export default function Users() {
           </div>
 
           {showCreate && (
-            <form onSubmit={createUser} className="bg-white rounded-lg shadow p-5 mb-6">
+            <form onSubmit={createUser} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} placeholder="Username" className="border rounded px-3 py-2 text-sm" required />
                 <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 8 chars)" className="border rounded px-3 py-2 text-sm" required />
@@ -109,26 +109,26 @@ export default function Users() {
             </form>
           )}
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Username</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">UID</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">GID</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Home</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Shell</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Username</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">UID</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">GID</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Home</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Shell</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {users.map(u => (
-                  <tr key={u.username} className="border-t hover:bg-gray-50">
+                  <tr key={u.username} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-4 py-3 font-medium">{u.username}</td>
                     <td className="px-4 py-3 font-mono text-xs">{u.uid}</td>
                     <td className="px-4 py-3 font-mono text-xs">{u.gid}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{u.home}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{u.shell}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">{u.home}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">{u.shell}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => deleteUser(u.username)} className="text-red-600 hover:text-red-800 text-xs">Delete</button>
                     </td>
@@ -149,7 +149,7 @@ export default function Users() {
           </div>
 
           {showGroupCreate && (
-            <form onSubmit={createGroup} className="bg-white rounded-lg shadow p-5 mb-6">
+            <form onSubmit={createGroup} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <input type="text" value={groupForm.name} onChange={e => setGroupForm({...groupForm, name: e.target.value})} placeholder="Group name" className="border rounded px-3 py-2 text-sm" required />
                 <input type="text" value={groupForm.gid} onChange={e => setGroupForm({...groupForm, gid: e.target.value})} placeholder="GID (optional)" className="border rounded px-3 py-2 text-sm" />
@@ -158,21 +158,21 @@ export default function Users() {
             </form>
           )}
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Group</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">GID</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Members</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Group</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">GID</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Members</th>
                 </tr>
               </thead>
               <tbody>
                 {groups.map(g => (
-                  <tr key={g.name} className="border-t hover:bg-gray-50">
+                  <tr key={g.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-4 py-3 font-medium">{g.name}</td>
                     <td className="px-4 py-3 font-mono text-xs">{g.gid}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{g.members.join(', ') || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{g.members.join(', ') || '-'}</td>
                   </tr>
                 ))}
               </tbody>

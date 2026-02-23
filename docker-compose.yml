@@ -12,6 +12,7 @@ services:
       - /etc/shadow:/etc/shadow
       - /etc/chrony:/etc/chrony
       - /var/run/dbus:/var/run/dbus:ro
+      - /etc/netplan:/etc/netplan
       - nas-data:/data
     env_file: .env
 

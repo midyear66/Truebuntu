@@ -53,11 +53,11 @@ function StepIndicator({ step }) {
       {steps.map((label, i) => (
         <div key={i} className="flex items-center">
           <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold
-            ${i < step ? 'bg-blue-600 text-white' : i === step ? 'bg-blue-600 text-white ring-4 ring-blue-200' : 'bg-gray-200 text-gray-500'}`}>
+            ${i < step ? 'bg-blue-600 text-white' : i === step ? 'bg-blue-600 text-white ring-4 ring-blue-200 dark:ring-blue-800' : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400'}`}>
             {i < step ? '\u2713' : i + 1}
           </div>
-          <span className={`ml-2 text-sm ${i === step ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>{label}</span>
-          {i < steps.length - 1 && <div className={`w-12 h-0.5 mx-3 ${i < step ? 'bg-blue-600' : 'bg-gray-200'}`} />}
+          <span className={`ml-2 text-sm ${i === step ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'}`}>{label}</span>
+          {i < steps.length - 1 && <div className={`w-12 h-0.5 mx-3 ${i < step ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`} />}
         </div>
       ))}
     </div>
@@ -165,34 +165,34 @@ export default function PoolCreateWizard({ onCreated, onCancel }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-bold text-gray-900">Create Pool</h3>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Create Pool</h3>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
       </div>
 
       <StepIndicator step={step} />
 
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {/* Step 0: Name & Topology */}
       {step === 0 && (
         <div>
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Pool Name</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Pool Name</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. tank, data, backup"
               className={`w-full max-w-xs px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                nameError ? 'border-red-300' : 'border-gray-300'
+                nameError ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
               }`}
             />
-            {nameError && <p className="text-xs text-red-600 mt-1">{nameError}</p>}
+            {nameError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{nameError}</p>}
           </div>
 
-          <label className="block text-sm font-medium text-gray-700 mb-3">Topology</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Topology</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {TOPOLOGIES.map(topo => (
               <div
@@ -200,15 +200,15 @@ export default function PoolCreateWizard({ onCreated, onCancel }) {
                 onClick={() => setTopology(topo.value)}
                 className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
                   topology === topo.value
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                 }`}
               >
-                <div className="font-semibold text-sm">{topo.label}</div>
-                <p className="text-xs text-gray-500 mt-1">{topo.desc}</p>
-                <div className="text-xs text-gray-400 mt-2">Min disks: {topo.minDisks} &middot; Usable: {topo.formula}</div>
+                <div className="font-semibold text-sm dark:text-gray-100">{topo.label}</div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{topo.desc}</p>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">Min disks: {topo.minDisks} &middot; Usable: {topo.formula}</div>
                 {topo.warning && (
-                  <div className="mt-2 text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">No redundancy!</div>
+                  <div className="mt-2 text-xs text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">No redundancy!</div>
                 )}
               </div>
             ))}
@@ -227,28 +227,28 @@ export default function PoolCreateWizard({ onCreated, onCancel }) {
               <span className="w-3 h-3 rounded bg-amber-500 inline-block"></span> Spare ({spareDisks.length})
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-gray-200 inline-block"></span> Unselected
+              <span className="w-3 h-3 rounded bg-gray-200 dark:bg-gray-600 inline-block"></span> Unselected
             </span>
-            <span className="ml-auto text-xs text-gray-500">Click to cycle: unselected &rarr; data &rarr; spare &rarr; unselected</span>
+            <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">Click to cycle: unselected &rarr; data &rarr; spare &rarr; unselected</span>
           </div>
 
           {dataDisks.length < minDisks && (
-            <div className="mb-4 p-2 bg-yellow-50 text-yellow-700 text-sm rounded">
+            <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 text-sm rounded">
               Select at least {minDisks} data disk{minDisks > 1 ? 's' : ''} for {topoInfo?.label}
             </div>
           )}
 
           {diskLoading ? (
-            <div className="text-gray-500 text-sm py-8 text-center">Loading available disks...</div>
+            <div className="text-gray-500 dark:text-gray-400 text-sm py-8 text-center">Loading available disks...</div>
           ) : disks.length === 0 ? (
-            <div className="text-gray-400 text-sm py-8 text-center">No available disks found. All disks may be in use by existing pools.</div>
+            <div className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">No available disks found. All disks may be in use by existing pools.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {disks.map(disk => {
                 const role = diskRoles[disk.name]
-                const borderColor = role === 'data' ? 'border-blue-500 bg-blue-50'
-                  : role === 'spare' ? 'border-amber-500 bg-amber-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                const borderColor = role === 'data' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : role === 'spare' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                 return (
                   <div
                     key={disk.name}
@@ -256,18 +256,18 @@ export default function PoolCreateWizard({ onCreated, onCancel }) {
                     className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${borderColor}`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-semibold text-sm">{disk.name}</span>
-                      <span className="text-sm font-medium">{disk.size}</span>
+                      <span className="font-mono font-semibold text-sm dark:text-gray-100">{disk.name}</span>
+                      <span className="text-sm font-medium dark:text-gray-200">{disk.size}</span>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1 truncate">{disk.model || 'Unknown model'}</div>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{disk.model || 'Unknown model'}</div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 dark:text-gray-500">
                       <span>{disk.rota ? 'HDD' : 'SSD'}</span>
                       {disk.tran && <span className="uppercase">{disk.tran}</span>}
                       {disk.serial && <span className="truncate" title={disk.serial}>{disk.serial}</span>}
                     </div>
                     {role && (
                       <div className={`mt-2 text-xs font-medium px-2 py-0.5 rounded inline-block ${
-                        role === 'data' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        role === 'data' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                       }`}>
                         {role.toUpperCase()}
                       </div>
@@ -285,43 +285,43 @@ export default function PoolCreateWizard({ onCreated, onCancel }) {
         <div>
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
-              <span className="text-xs text-gray-500">Pool Name</span>
-              <div className="font-semibold">{name}</div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Pool Name</span>
+              <div className="font-semibold dark:text-gray-100">{name}</div>
             </div>
             <div>
-              <span className="text-xs text-gray-500">Topology</span>
-              <div className="font-semibold">{topoInfo?.label}</div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Topology</span>
+              <div className="font-semibold dark:text-gray-100">{topoInfo?.label}</div>
             </div>
             <div>
-              <span className="text-xs text-gray-500">Data Disks ({dataDisks.length})</span>
-              <div className="text-sm font-mono">{dataDisks.map(d => d.name).join(', ')}</div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Data Disks ({dataDisks.length})</span>
+              <div className="text-sm font-mono dark:text-gray-200">{dataDisks.map(d => d.name).join(', ')}</div>
             </div>
             <div>
-              <span className="text-xs text-gray-500">Spare Disks ({spareDisks.length})</span>
-              <div className="text-sm font-mono">{spareDisks.length > 0 ? spareDisks.map(d => d.name).join(', ') : 'None'}</div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Spare Disks ({spareDisks.length})</span>
+              <div className="text-sm font-mono dark:text-gray-200">{spareDisks.length > 0 ? spareDisks.map(d => d.name).join(', ') : 'None'}</div>
             </div>
             {estimateUsable(topology, dataDisks) && (
               <div>
-                <span className="text-xs text-gray-500">Estimated Usable</span>
-                <div className="font-semibold">{estimateUsable(topology, dataDisks)}</div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Estimated Usable</span>
+                <div className="font-semibold dark:text-gray-100">{estimateUsable(topology, dataDisks)}</div>
               </div>
             )}
           </div>
 
           <div className="mb-4">
-            <span className="text-xs text-gray-500">Command Preview</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Command Preview</span>
             <pre className="mt-1 p-3 bg-gray-900 text-green-400 text-xs rounded overflow-x-auto">{buildCommand()}</pre>
           </div>
 
           <div className="flex items-center gap-4 mb-4">
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm dark:text-gray-200">
               <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} className="rounded" />
               Force create (use if disks have existing partitions)
             </label>
           </div>
 
           {topology === 'stripe' && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded">
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded">
               <strong>Warning:</strong> Stripe has no redundancy. Any disk failure will result in total data loss.
             </div>
           )}
@@ -329,18 +329,18 @@ export default function PoolCreateWizard({ onCreated, onCancel }) {
       )}
 
       {/* Navigation */}
-      <div className="flex justify-between mt-6 pt-4 border-t">
+      <div className="flex justify-between mt-6 pt-4 border-t dark:border-gray-700">
         <div>
           {step > 0 && (
             <button onClick={() => { setStep(step - 1); setError('') }}
-              className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200">
+              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
               Back
             </button>
           )}
         </div>
         <div className="flex gap-2">
           <button onClick={onCancel}
-            className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200">
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
             Cancel
           </button>
           {step < 2 ? (

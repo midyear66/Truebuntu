@@ -56,19 +56,19 @@ export default function Updates() {
     }
   }
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">System Updates</h2>
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">System Updates</h2>
 
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {/* Status card */}
-      <div className="bg-white rounded-lg shadow p-5 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Last check: {lastCheck ? new Date(lastCheck).toLocaleString() : 'Never'}
             </p>
             <p className="text-lg font-semibold mt-1">
@@ -98,15 +98,15 @@ export default function Updates() {
 
       {/* Confirm dialog */}
       {showConfirm && (
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm font-medium text-yellow-800 mb-3">
+        <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-400 mb-3">
             Apply {packages.length} update{packages.length !== 1 ? 's' : ''}? This may take several minutes.
           </p>
           <div className="flex gap-2">
             <button onClick={applyUpdates} className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">
               Confirm
             </button>
-            <button onClick={() => setShowConfirm(false)} className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+            <button onClick={() => setShowConfirm(false)} className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
               Cancel
             </button>
           </div>
@@ -115,21 +115,21 @@ export default function Updates() {
 
       {/* Package table */}
       {packages.length > 0 && (
-        <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-6">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Package</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Current Version</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">New Version</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Package</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Current Version</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">New Version</th>
               </tr>
             </thead>
             <tbody>
               {packages.map(p => (
-                <tr key={p.name} className="border-t hover:bg-gray-50">
+                <tr key={p.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-4 py-2 font-medium">{p.name}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{p.current_version}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-green-700">{p.new_version}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{p.current_version}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-green-700 dark:text-green-400">{p.new_version}</td>
                 </tr>
               ))}
             </tbody>
@@ -139,8 +139,8 @@ export default function Updates() {
 
       {/* Apply output */}
       {applyOutput && (
-        <div className="bg-white rounded-lg shadow p-5">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Update Output</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Update Output</h3>
           <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded overflow-auto max-h-96 whitespace-pre-wrap">{applyOutput}</pre>
         </div>
       )}

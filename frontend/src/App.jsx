@@ -24,6 +24,10 @@ import Disks from './pages/Disks'
 import Settings from './pages/Settings'
 import Enclosures from './pages/Enclosures'
 import Updates from './pages/Updates'
+import Network from './pages/Network'
+import Replication from './pages/Replication'
+import Logs from './pages/Logs'
+import Alerts from './pages/Alerts'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -52,8 +56,8 @@ function App() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
       </div>
     )
   }
@@ -98,6 +102,10 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/enclosures" element={<Enclosures />} />
           <Route path="/updates" element={<Updates />} />
+          <Route path="/network" element={<Network />} />
+          <Route path="/replication" element={<Replication />} />
+          <Route path="/logs" element={<Logs />} />
+          <Route path="/alerts" element={<Alerts />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>

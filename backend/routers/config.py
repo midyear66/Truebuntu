@@ -6,11 +6,13 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 
 from backend.database import DATABASE_PATH, get_db
 from backend.utils.auth import get_current_user
+from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(get_current_user)])
@@ -21,7 +23,7 @@ def export_config(username: str = Depends(get_current_user)):
     db = get_db()
     try:
         export = {
-            "version": 2,
+            "version": 3,
             "exported_at": datetime.now().isoformat(),
             "exported_by": username,
         }
@@ -59,6 +61,10 @@ def export_config(username: str = Depends(get_current_user)):
         rows = db.execute("SELECT * FROM smart_tests").fetchall()
         export["smart_tests"] = [dict(r) for r in rows]
 
+        # Export replication tasks
+        rows = db.execute("SELECT * FROM zfs_replication_tasks").fetchall()
+        export["zfs_replication_tasks"] = [dict(r) for r in rows]
+
         # Export resilver config
         row = db.execute("SELECT * FROM resilver_config WHERE id = 1").fetchone()
         if row:
@@ -73,6 +79,18 @@ def export_config(username: str = Depends(get_current_user)):
         exports_path = Path("/etc/exports")
         if exports_path.exists():
             export["exports"] = exports_path.read_text()
+
+        # Export netplan configs
+        netplan_dir = Path("/etc/netplan")
+        if netplan_dir.is_dir():
+            netplan = {}
+            for f in sorted(netplan_dir.glob("*.yaml")):
+                try:
+                    netplan[f.name] = yaml.safe_load(f.read_text())
+                except Exception:
+                    pass
+            if netplan:
+                export["netplan"] = netplan
 
     finally:
         db.close()
@@ -94,7 +112,7 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON file")
 
-    if data.get("version") not in (1, 2):
+    if data.get("version") not in (1, 2, 3):
         raise HTTPException(status_code=400, detail="Unsupported config version")
 
     results = {}
@@ -193,6 +211,22 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
                 )
             results["smart_tests"] = len(data["smart_tests"])
 
+        # Import replication tasks
+        if "zfs_replication_tasks" in data:
+            for t in data["zfs_replication_tasks"]:
+                db.execute(
+                    """INSERT INTO zfs_replication_tasks
+                       (name, source_dataset, destination_host, destination_port, destination_user,
+                        destination_dataset, recursive, incremental, ssh_key_path, schedule, enabled)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (t["name"], t["source_dataset"], t["destination_host"],
+                     t.get("destination_port", 22), t.get("destination_user", "root"),
+                     t["destination_dataset"], t.get("recursive", 0), t.get("incremental", 1),
+                     t.get("ssh_key_path", ""), t.get("schedule", "0 0 * * *"),
+                     t.get("enabled", 1)),
+                )
+            results["zfs_replication_tasks"] = len(data["zfs_replication_tasks"])
+
         # Import resilver config
         if "resilver_config" in data:
             rc = data["resilver_config"]
@@ -218,6 +252,17 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
         if "exports" in data:
             Path("/etc/exports").write_text(data["exports"])
             results["exports"] = True
+
+        # Import netplan configs
+        if "netplan" in data:
+            netplan_dir = Path("/etc/netplan")
+            netplan_dir.mkdir(parents=True, exist_ok=True)
+            for filename, content in data["netplan"].items():
+                if not filename.endswith(".yaml"):
+                    continue
+                (netplan_dir / filename).write_text(yaml.dump(content, default_flow_style=False, sort_keys=False))
+            run(["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "netplan", "apply"], timeout=30)
+            results["netplan"] = len(data["netplan"])
 
     finally:
         db.close()

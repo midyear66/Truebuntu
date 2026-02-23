@@ -58,14 +58,14 @@ export default function Snapshots() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Snapshots</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Snapshots</h2>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       <div className="mb-4">
         <button
@@ -77,7 +77,7 @@ export default function Snapshots() {
       </div>
 
       {showCreate && (
-        <form onSubmit={createSnapshot} className="bg-white rounded-lg shadow p-5 mb-6">
+        <form onSubmit={createSnapshot} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input type="text" value={dataset} onChange={e => setDataset(e.target.value)} placeholder="Dataset (e.g. testpool/data)" className="border rounded px-3 py-2 text-sm" required />
             <input type="text" value={snapName} onChange={e => setSnapName(e.target.value)} placeholder="Name (optional)" className="border rounded px-3 py-2 text-sm" />
@@ -92,24 +92,24 @@ export default function Snapshots() {
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Used</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Refer</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Created</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Name</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Used</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Refer</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Created</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {snapshots.map(snap => (
-              <tr key={snap.name} className="border-t hover:bg-gray-50">
+              <tr key={snap.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-4 py-3 font-mono text-xs">{snap.name}</td>
                 <td className="px-4 py-3">{snap.used}</td>
                 <td className="px-4 py-3">{snap.refer}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{snap.creation}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{snap.creation}</td>
                 <td className="px-4 py-3 text-right">
                   <button onClick={() => setConfirmAction({ type: 'rollback', name: snap.name })} className="text-yellow-600 hover:text-yellow-800 text-xs mr-3">Rollback</button>
                   <button onClick={() => setConfirmAction({ type: 'delete', name: snap.name })} className="text-red-600 hover:text-red-800 text-xs">Delete</button>

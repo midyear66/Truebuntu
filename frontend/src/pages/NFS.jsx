@@ -55,14 +55,14 @@ export default function NFS() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">NFS Exports</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">NFS Exports</h2>
         <div className="flex gap-2">
-          <button onClick={reloadExports} className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+          <button onClick={reloadExports} className="px-4 py-2 text-sm bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
             Reload
           </button>
           <button onClick={() => setShowCreate(!showCreate)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
@@ -70,10 +70,10 @@ export default function NFS() {
           </button>
         </div>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {showCreate && (
-        <form onSubmit={createExport} className="bg-white rounded-lg shadow p-5 mb-6">
+        <form onSubmit={createExport} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
             <input type="text" value={form.path} onChange={e => setForm({...form, path: e.target.value})} placeholder="Export path" className="border rounded px-3 py-2 text-sm" required />
             <input type="text" value={form.host} onChange={e => setForm({...form, host: e.target.value})} placeholder="Host/network" className="border rounded px-3 py-2 text-sm" />
@@ -83,22 +83,22 @@ export default function NFS() {
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Path</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Clients</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Path</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Clients</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {exports.map((exp, i) => (
-              <tr key={i} className="border-t hover:bg-gray-50">
+              <tr key={i} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-4 py-3 font-mono text-xs">{exp.path}</td>
                 <td className="px-4 py-3">
                   {exp.clients.map((c, j) => (
-                    <span key={j} className="inline-block mr-2 text-xs bg-gray-100 px-2 py-0.5 rounded">
+                    <span key={j} className="inline-block mr-2 text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
                       {c.host}({c.options})
                     </span>
                   ))}

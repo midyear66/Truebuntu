@@ -33,55 +33,55 @@ export default function Services() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Services</h2>
-        <button onClick={load} className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Services</h2>
+        <button onClick={load} className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
           Refresh
         </button>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Service</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Active</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Enabled</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase text-right">Actions</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Service</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Active</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Enabled</th>
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {services.map(svc => (
-              <tr key={svc.name} className="border-t hover:bg-gray-50">
+              <tr key={svc.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-4 py-3 font-medium">{svc.name}</td>
                 <td className="px-4 py-3"><StatusBadge status={svc.active} /></td>
                 <td className="px-4 py-3"><StatusBadge status={svc.enabled} /></td>
                 <td className="px-4 py-3 text-right space-x-1">
                   {svc.active === 'active' ? (
                     <>
-                      <button onClick={() => performAction(svc.name, 'restart')} disabled={!!acting} className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 disabled:opacity-50">
+                      <button onClick={() => performAction(svc.name, 'restart')} disabled={!!acting} className="px-2 py-1 text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/40 disabled:opacity-50">
                         Restart
                       </button>
-                      <button onClick={() => performAction(svc.name, 'stop')} disabled={!!acting} className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 disabled:opacity-50">
+                      <button onClick={() => performAction(svc.name, 'stop')} disabled={!!acting} className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/40 disabled:opacity-50">
                         Stop
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => performAction(svc.name, 'start')} disabled={!!acting} className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 disabled:opacity-50">
+                    <button onClick={() => performAction(svc.name, 'start')} disabled={!!acting} className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 rounded hover:bg-green-200 dark:hover:bg-green-900/40 disabled:opacity-50">
                       Start
                     </button>
                   )}
                   {svc.enabled === 'enabled' ? (
-                    <button onClick={() => performAction(svc.name, 'disable')} disabled={!!acting} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50">
+                    <button onClick={() => performAction(svc.name, 'disable')} disabled={!!acting} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50">
                       Disable
                     </button>
                   ) : (
-                    <button onClick={() => performAction(svc.name, 'enable')} disabled={!!acting} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 disabled:opacity-50">
+                    <button onClick={() => performAction(svc.name, 'enable')} disabled={!!acting} className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 rounded hover:bg-blue-200 disabled:opacity-50">
                       Enable
                     </button>
                   )}

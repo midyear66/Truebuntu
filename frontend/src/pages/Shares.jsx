@@ -43,20 +43,20 @@ export default function Shares() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">SMB Shares</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">SMB Shares</h2>
         <button onClick={() => setShowCreate(!showCreate)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
           Create Share
         </button>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {showCreate && (
-        <form onSubmit={createShare} className="bg-white rounded-lg shadow p-5 mb-6">
+        <form onSubmit={createShare} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Share name" className="border rounded px-3 py-2 text-sm" required />
             <input type="text" value={form.path} onChange={e => setForm({...form, path: e.target.value})} placeholder="Path (e.g. /mnt/testpool/data)" className="border rounded px-3 py-2 text-sm" required />
@@ -77,28 +77,28 @@ export default function Shares() {
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Path</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Comment</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Access</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Name</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Path</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Comment</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Access</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {shares.map(s => (
-              <tr key={s.name} className="border-t hover:bg-gray-50">
+              <tr key={s.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-4 py-3 font-medium">{s.name}</td>
                 <td className="px-4 py-3 font-mono text-xs">{s.path}</td>
-                <td className="px-4 py-3 text-gray-500">{s.comment || '-'}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>
                 <td className="px-4 py-3">
                   {s['read only'] === 'yes' ? (
-                    <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Read Only</span>
+                    <span className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 rounded">Read Only</span>
                   ) : (
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Read/Write</span>
+                    <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded">Read/Write</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">

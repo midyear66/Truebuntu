@@ -6,15 +6,15 @@ import PoolCreateWizard from '../components/PoolCreateWizard'
 
 function DiskStateBadge({ state }) {
   const styles = {
-    ONLINE: 'bg-green-100 text-green-800',
-    DEGRADED: 'bg-yellow-100 text-yellow-800',
-    FAULTED: 'bg-red-100 text-red-800',
-    OFFLINE: 'bg-gray-100 text-gray-800',
-    UNAVAIL: 'bg-red-100 text-red-800',
-    REMOVED: 'bg-red-100 text-red-800',
+    ONLINE: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    DEGRADED: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    FAULTED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    OFFLINE: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+    UNAVAIL: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    REMOVED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     AVAIL: 'bg-blue-100 text-blue-800',
   }
-  const style = styles[state] || 'bg-gray-100 text-gray-800'
+  const style = styles[state] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
   return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${style}`}>{state}</span>
 }
 
@@ -22,7 +22,7 @@ function ErrorCount({ read, write, cksum }) {
   const r = parseInt(read) || 0
   const w = parseInt(write) || 0
   const c = parseInt(cksum) || 0
-  if (r === 0 && w === 0 && c === 0) return <span className="text-xs text-gray-400">0/0/0</span>
+  if (r === 0 && w === 0 && c === 0) return <span className="text-xs text-gray-400 dark:text-gray-500">0/0/0</span>
   return (
     <span className="text-xs font-mono">
       <span className={r > 0 ? 'text-red-600 font-bold' : ''}>{r}</span>/
@@ -41,9 +41,9 @@ function VdevNode({ node, depth, pool, onAction }) {
 
   return (
     <>
-      <tr className={`border-t ${isFailed && isDisk ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
+      <tr className={`border-t dark:border-gray-700 ${isFailed && isDisk ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
         <td className="px-4 py-2" style={{ paddingLeft: `${16 + indent}px` }}>
-          <span className={`${isDisk ? 'font-mono text-xs' : 'font-medium text-sm'} ${isSection ? 'uppercase text-gray-500 text-xs tracking-wide' : ''}`}>
+          <span className={`${isDisk ? 'font-mono text-xs' : 'font-medium text-sm'} ${isSection ? 'uppercase text-gray-500 dark:text-gray-400 text-xs tracking-wide' : ''}`}>
             {node.name}
           </span>
         </td>
@@ -65,7 +65,7 @@ function VdevNode({ node, depth, pool, onAction }) {
               {isFailed && (
                 <button onClick={() => onAction('replace', node.name)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Replace</button>
               )}
-              <button onClick={() => onAction('detach', node.name)} className="text-gray-500 hover:text-gray-700 text-xs">Detach</button>
+              <button onClick={() => onAction('detach', node.name)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xs">Detach</button>
             </>
           )}
           {isDisk && node.state === 'ONLINE' && (
@@ -204,12 +204,12 @@ export default function Pools() {
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="text-gray-500">Loading...</div>
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Storage Pools</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Storage Pools</h2>
         {!showWizard && (
           <button
             onClick={() => setShowWizard(true)}
@@ -219,7 +219,7 @@ export default function Pools() {
           </button>
         )}
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
 
       {showWizard && (
         <PoolCreateWizard
@@ -230,12 +230,12 @@ export default function Pools() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
             {pools.map(pool => (
               <div
                 key={pool.name}
                 onClick={() => loadDetail(pool.name)}
-                className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
+                className={`p-4 border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
                   selected === pool.name ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                 }`}
               >
@@ -243,20 +243,20 @@ export default function Pools() {
                   <span className="font-medium">{pool.name}</span>
                   <StatusBadge status={pool.health} />
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {pool.allocated} / {pool.size} ({pool.capacity})
                 </div>
               </div>
             ))}
             {pools.length === 0 && (
-              <div className="p-4 text-sm text-gray-400">No pools found</div>
+              <div className="p-4 text-sm text-gray-400 dark:text-gray-500">No pools found</div>
             )}
           </div>
         </div>
 
         <div className="lg:col-span-2">
           {detail && (
-            <div className="bg-white rounded-lg shadow p-5">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">{selected}</h3>
                 <div className="flex gap-2">
@@ -277,29 +277,29 @@ export default function Pools() {
               </div>
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <span className="text-xs text-gray-500">State</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">State</span>
                   <div><StatusBadge status={detail.state} /></div>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-500">Errors</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Errors</span>
                   <div className="text-sm">{detail.errors}</div>
                 </div>
               </div>
               {detail.scan && (
                 <div className="mb-4">
-                  <span className="text-xs text-gray-500">Scan</span>
-                  <div className="text-sm whitespace-pre-wrap font-mono text-xs bg-gray-50 p-2 rounded mt-1">{detail.scan}</div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Scan</span>
+                  <div className="text-sm whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded mt-1">{detail.scan}</div>
                 </div>
               )}
 
               {/* Vdev Tree */}
               <div className="mb-4">
-                <span className="text-xs text-gray-500">Configuration</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Configuration</span>
                 {detail.vdevs && detail.vdevs.length > 0 ? (
-                  <div className="mt-1 bg-gray-50 rounded overflow-hidden">
+                  <div className="mt-1 bg-gray-50 dark:bg-gray-700 rounded overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-left text-xs text-gray-500 border-b">
+                        <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                           <th className="px-4 py-2">Name</th>
                           <th className="px-4 py-2">State</th>
                           <th className="px-4 py-2">R/W/C Errors</th>
@@ -314,7 +314,7 @@ export default function Pools() {
                     </table>
                   </div>
                 ) : (
-                  <pre className="text-xs bg-gray-50 p-3 rounded mt-1 overflow-x-auto">{detail.config}</pre>
+                  <pre className="text-xs bg-gray-50 dark:bg-gray-700 p-3 rounded mt-1 overflow-x-auto">{detail.config}</pre>
                 )}
               </div>
             </div>
@@ -325,13 +325,13 @@ export default function Pools() {
       {/* Replace Disk Dialog */}
       {showReplace && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-2">Replace Disk</h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
               Replace <span className="font-mono font-medium">{showReplace}</span> in pool <span className="font-medium">{selected}</span>
             </p>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">New Disk</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">New Disk</label>
               {availableDisks.length > 0 ? (
                 <select
                   value={replaceDisk}
@@ -346,7 +346,7 @@ export default function Pools() {
                   ))}
                 </select>
               ) : (
-                <div className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded">
+                <div className="text-sm text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded">
                   No available disks found. Insert a replacement disk and try again.
                 </div>
               )}
@@ -356,7 +356,7 @@ export default function Pools() {
               Force replace (skip some safety checks)
             </label>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowReplace(null)} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
+              <button onClick={() => setShowReplace(null)} className="px-4 py-2 text-sm border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
               </button>
               <button
