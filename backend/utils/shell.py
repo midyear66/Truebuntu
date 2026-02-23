@@ -28,6 +28,8 @@ ALLOWED_COMMANDS = {
     "getent",
     "chown",
     "chmod",
+    "nsenter",
+    "chpasswd",
 }
 
 DANGEROUS_CHARS = re.compile(r"[;|&$`]")

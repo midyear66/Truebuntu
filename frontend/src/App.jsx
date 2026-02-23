@@ -1,16 +1,88 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import api from './api'
+import Layout from './components/Layout'
+import Login from './pages/Login'
+import Setup from './pages/Setup'
+import Dashboard from './pages/Dashboard'
+import Pools from './pages/Pools'
+import Datasets from './pages/Datasets'
+import Snapshots from './pages/Snapshots'
+import Shares from './pages/Shares'
+import NFS from './pages/NFS'
+import CloudSync from './pages/CloudSync'
+import Tasks from './pages/Tasks'
+import Users from './pages/Users'
+import Services from './pages/Services'
+import Disks from './pages/Disks'
 
 function App() {
+  const [user, setUser] = useState(null)
+  const [needsSetup, setNeedsSetup] = useState(false)
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const setupRes = await api.get('/auth/setup-required')
+        if (setupRes.data.setup_required) {
+          setNeedsSetup(true)
+          setChecking(false)
+          return
+        }
+        const meRes = await api.get('/auth/me')
+        setUser(meRes.data.username)
+      } catch (err) {
+        // Not logged in
+      } finally {
+        setChecking(false)
+      }
+    }
+    check()
+  }, [])
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    )
+  }
+
+  if (needsSetup) {
+    return (
+      <BrowserRouter>
+        <Setup onSetup={(u) => { setUser(u); setNeedsSetup(false) }} />
+      </BrowserRouter>
+    )
+  }
+
+  if (!user) {
+    return (
+      <BrowserRouter>
+        <Login onLogin={setUser} />
+      </BrowserRouter>
+    )
+  }
+
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-100">
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-800 mb-4">NAS Web UI</h1>
-            <p className="text-gray-600">Phase 4 will build out the full frontend.</p>
-          </div>
-        </div>
-      </div>
+      <Layout user={user}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/pools" element={<Pools />} />
+          <Route path="/datasets" element={<Datasets />} />
+          <Route path="/snapshots" element={<Snapshots />} />
+          <Route path="/shares" element={<Shares />} />
+          <Route path="/nfs" element={<NFS />} />
+          <Route path="/cloud-sync" element={<CloudSync />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/disks" element={<Disks />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Layout>
     </BrowserRouter>
   )
 }

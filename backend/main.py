@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, FileResponse
 
 from backend.database import init_db
-from backend.routers import auth, pools
+from backend.routers import auth, pools, datasets, snapshots, shares, nfs, users, services, tasks, disks, rclone, dashboard
 
 logging.basicConfig(
     level=getattr(logging, os.environ.get("LOG_LEVEL", "info").upper(), logging.INFO),
@@ -21,6 +21,17 @@ app = FastAPI(title="NAS Web UI", version="0.1.0")
 app.include_router(auth.router, prefix="/api")
 app.include_router(pools.disks_router, prefix="/api")
 app.include_router(pools.router, prefix="/api")
+app.include_router(datasets.router, prefix="/api")
+app.include_router(snapshots.router, prefix="/api")
+app.include_router(snapshots.policies_router, prefix="/api")
+app.include_router(shares.router, prefix="/api")
+app.include_router(nfs.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(services.router, prefix="/api")
+app.include_router(tasks.router, prefix="/api")
+app.include_router(disks.router, prefix="/api")
+app.include_router(rclone.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
 
 
 @app.on_event("startup")
