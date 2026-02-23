@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="NAS Web UI", version="0.1.0")
+app = FastAPI(title="Truebuntu", version="0.1.0")
 
 
 # Audit logging middleware
@@ -79,7 +79,7 @@ app.include_router(config.router, prefix="/api")
 @app.on_event("startup")
 def startup():
     init_db()
-    logger.info("NAS Web UI started")
+    logger.info("Truebuntu started")
 
 
 @app.exception_handler(Exception)

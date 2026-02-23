@@ -29,7 +29,7 @@ def parse_exports(path: str = EXPORTS_PATH) -> list[dict]:
 
 
 def write_exports(exports: list[dict], path: str = EXPORTS_PATH):
-    lines = ["# NFS Exports - managed by NAS Web UI\n"]
+    lines = ["# NFS Exports - managed by Truebuntu\n"]
     for export in exports:
         client_parts = []
         for client in export["clients"]:

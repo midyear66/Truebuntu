@@ -24,7 +24,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">NAS Web UI</h1>
+        <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">Truebuntu</h1>
         <form onSubmit={handleSubmit}>
           {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
           <div className="mb-4">

@@ -73,7 +73,7 @@ export default function Layout({ children, user }) {
     <div className="flex h-screen bg-gray-100">
       <aside className="w-56 bg-gray-900 text-gray-300 flex flex-col">
         <div className="p-4 border-b border-gray-700">
-          <h1 className="text-lg font-bold text-white">NAS Web UI</h1>
+          <h1 className="text-lg font-bold text-white">Truebuntu</h1>
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
           {NAV_ITEMS.map(item =>

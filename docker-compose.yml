@@ -1,5 +1,5 @@
 services:
-  nas-webui:
+  truebuntu:
     build: .
     restart: unless-stopped
     privileged: true
