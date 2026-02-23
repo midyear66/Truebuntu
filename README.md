@@ -72,16 +72,29 @@ A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Provid
 
 ## Quick Start
 
+Run the one-liner on a fresh Ubuntu/Debian x86_64 host (8 GB+ RAM):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sanford-truebuntu/nas-webui/main/install.sh | sudo bash
+```
+
+This installs all host dependencies (Docker, ZFS, Samba, NFS, Chrony, smartmontools, rclone, netplan), clones the repo to `/opt/truebuntu`, generates a `.env` with a random secret key, and starts the container.
+
+Once complete, open `http://<your-server-ip>` in a browser and create your admin account.
+
+<details>
+<summary>Manual install</summary>
+
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-user/nas-webui.git
-   cd nas-webui
+   git clone https://github.com/sanford-truebuntu/nas-webui.git /opt/truebuntu
+   cd /opt/truebuntu
    ```
 
 2. Create a `.env` file:
    ```bash
-   SECRET_KEY=your-random-secret-key-here
-   LOG_LEVEL=info
+   cp .env.example .env
+   # Edit .env and set a random SECRET_KEY
    ```
 
 3. Build and run with Docker Compose:
@@ -90,6 +103,8 @@ A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Provid
    ```
 
 4. Open `http://<your-server-ip>` in a browser and create your admin account.
+
+</details>
 
 ## Architecture
 
