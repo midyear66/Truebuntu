@@ -33,17 +33,20 @@ A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Provid
 - **DNS & Routes** -- View system DNS servers, search domains, and routing table.
 
 ### System Administration
-- **Users & Groups** -- Create and manage Unix users with integrated Samba password sync.
+- **App User Management** -- Admin-only CRUD for web UI users with role assignment (admin/user), password resets, and 2FA status overview.
+- **System Users & Groups** -- Create and manage Unix users with integrated Samba password sync and password resets.
 - **Services** -- Start, stop, restart, enable, and disable system services (Samba, NFS, SSH, Docker, ZFS ZED, Chrony, smartmontools, Zabbix Agent).
 - **System Settings** -- Configure hostname, timezone, and NTP servers (chrony).
 - **Updates** -- Check for and apply system package updates via apt.
 - **System Logs** -- Real-time journalctl log viewer with unit, priority, and line count filtering, plus optional auto-refresh.
 - **Email Alerts** -- SMTP configuration with test email and per-category alert toggles (cron, rsync, SMART, replication failures).
-- **Dashboard** -- At-a-glance overview of pools, datasets, snapshots, services, disk temperatures, load average, memory usage, network throughput, and recent snapshots.
+- **Dashboard** -- Rich card-based overview with system info, CPU usage/temps, memory breakdown (services vs ZFS ARC vs free), per-pool health with vdev/disk details, per-interface throughput and link state, services, disk temperatures, and recent snapshots. Drag-and-drop card rearrangement with localStorage persistence via a "Customize" mode.
 
 ### Security
 - **JWT Authentication** -- HTTP-only cookie-based sessions with 24-hour expiry.
 - **TOTP 2FA** -- Optional two-factor authentication with QR code setup for authenticator apps.
+- **Role-Based Access** -- Admin and standard user roles. Admin-only endpoints for app user management.
+- **Self-Service Password** -- Users can change their own password from the header user menu.
 - **Audit Logging** -- All mutations (POST/PUT/DELETE) are logged with timestamp, user, action, resource, and IP address.
 
 ### Configuration Management
@@ -52,13 +55,15 @@ A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Provid
 
 ### UI
 - **Dark Mode** -- Class-based dark mode with localStorage persistence and system-preference fallback. Toggle via sun/moon button in the header.
-- **Collapsible Sidebar** -- Grouped navigation with expandable sections for Storage, Tasks, System, Sharing, and Accounts.
+- **Collapsible Sidebar** -- Accordion-style navigation with expandable sections for Storage, Tasks, System, Sharing, and Accounts.
+- **Customizable Dashboard** -- Drag-and-drop tile rearrangement with grip handles, dashed-ring edit mode, and order saved to localStorage.
+- **User Menu** -- Header dropdown with change password and logout actions.
 
 ## Tech Stack
 
 | Layer    | Technology                          |
 |----------|-------------------------------------|
-| Frontend | React 18, Vite 6, Tailwind CSS 3.4 |
+| Frontend | React 18, Vite 6, Tailwind CSS 3.4, @dnd-kit |
 | Backend  | Python 3.12, FastAPI, Uvicorn       |
 | Database | SQLite (aiosqlite, WAL mode)        |
 | Auth     | JWT (python-jose), bcrypt, pyotp    |
@@ -153,7 +158,7 @@ All endpoints are prefixed with `/api`. Authentication is required for all route
 
 | Module           | Prefix              | Description                         |
 |------------------|---------------------|-------------------------------------|
-| auth             | `/auth`             | Login, setup, session management    |
+| auth             | `/auth`             | Login, setup, session, app user mgmt|
 | totp             | `/auth/2fa`         | TOTP two-factor authentication      |
 | dashboard        | `/dashboard`        | System overview metrics             |
 | pools            | `/pools`, `/disks`  | ZFS pool and available disk mgmt    |
