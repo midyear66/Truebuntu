@@ -6,9 +6,14 @@ load_dotenv()
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from backend.database import init_db
-from backend.routers import auth, pools, datasets, snapshots, shares, nfs, users, services, tasks, disks, rclone, dashboard
+from backend.database import init_db, get_db
+from backend.utils.auth import decode_token, COOKIE_NAME
+from backend.routers import (
+    auth, pools, datasets, snapshots, shares, nfs,
+    users, services, tasks, disks, rclone, dashboard, migrate, config,
+)
 
 logging.basicConfig(
     level=getattr(logging, os.environ.get("LOG_LEVEL", "info").upper(), logging.INFO),
@@ -18,6 +23,41 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="NAS Web UI", version="0.1.0")
 
+
+# Audit logging middleware
+MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+class AuditMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if (
+            request.method in MUTATING_METHODS
+            and request.url.path.startswith("/api/")
+            and response.status_code < 400
+        ):
+            username = "anonymous"
+            token = request.cookies.get(COOKIE_NAME)
+            if token:
+                user = decode_token(token)
+                if user:
+                    username = user
+            try:
+                db = get_db()
+                db.execute(
+                    "INSERT INTO audit_log (username, action, resource, ip_address) VALUES (?, ?, ?, ?)",
+                    (username, request.method, request.url.path, request.client.host if request.client else ""),
+                )
+                db.commit()
+                db.close()
+            except Exception:
+                pass
+        return response
+
+
+app.add_middleware(AuditMiddleware)
+
+# Register routers
 app.include_router(auth.router, prefix="/api")
 app.include_router(pools.disks_router, prefix="/api")
 app.include_router(pools.router, prefix="/api")
@@ -32,6 +72,8 @@ app.include_router(tasks.router, prefix="/api")
 app.include_router(disks.router, prefix="/api")
 app.include_router(rclone.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(migrate.router, prefix="/api")
+app.include_router(config.router, prefix="/api")
 
 
 @app.on_event("startup")
