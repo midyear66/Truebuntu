@@ -54,7 +54,97 @@ def parse_zpool_status(pool: str) -> dict:
     if errors_match:
         info["errors"] = errors_match.group(1).strip()
 
+    # Add structured vdev tree
+    info["vdevs"] = parse_vdev_tree(output)
+
     return info
+
+
+def parse_vdev_tree(status_output: str) -> list[dict]:
+    """Parse zpool status config section into a structured vdev tree.
+
+    Returns a list of top-level entries (vdevs, spares, logs, cache sections).
+    Each vdev has: name, state, read, write, cksum, type, children[].
+    Leaf disks have: name, state, read, write, cksum, type='disk'.
+    """
+    # Extract config section
+    config_match = re.search(r"config:\s*\n(.+?)(?:\nerrors:)", status_output, re.DOTALL)
+    if not config_match:
+        return []
+
+    lines = config_match.group(1).splitlines()
+    if not lines:
+        return []
+
+    # Skip the header line (NAME STATE READ WRITE CKSUM)
+    data_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or (stripped.startswith("NAME") and "STATE" in stripped):
+            continue
+        data_lines.append(line)
+
+    if not data_lines:
+        return []
+
+    # Parse each line: measure indent using total leading whitespace
+    # zpool status uses tab(s) then spaces, e.g. "\t  mirror-0" = tab + 2 spaces
+    entries = []
+    for line in data_lines:
+        # Expand tabs to 8 spaces (standard tab width), then count leading spaces
+        expanded = line.expandtabs(8)
+        content = expanded.lstrip(" ")
+        indent = len(expanded) - len(content)
+        parts = content.split()
+        if not parts:
+            continue
+
+        name = parts[0]
+        state = parts[1] if len(parts) > 1 else ""
+        read_err = parts[2] if len(parts) > 2 else "0"
+        write_err = parts[3] if len(parts) > 3 else "0"
+        cksum_err = parts[4] if len(parts) > 4 else "0"
+
+        # Determine node type
+        if name in ("spares", "logs", "cache"):
+            node_type = "section"
+        elif re.match(r"(mirror|raidz[123]?|stripe|replacing)-?\d*", name):
+            node_type = "vdev"
+        else:
+            node_type = "disk"
+
+        entries.append({
+            "indent": indent,
+            "name": name,
+            "state": state,
+            "read": read_err,
+            "write": write_err,
+            "cksum": cksum_err,
+            "type": node_type,
+            "children": [],
+        })
+
+    # Build tree using indent levels
+    # The pool root is at indent level 1, vdevs at 2, disks at 3, etc.
+    # We skip the pool root itself and build from vdevs down.
+    if not entries:
+        return []
+
+    root_indent = entries[0]["indent"]  # pool name line
+    result = []
+    stack = [{"indent": root_indent - 1, "children": result}]
+
+    for entry in entries[1:]:  # skip pool root
+        # Pop stack until we find the parent
+        while stack and entry["indent"] <= stack[-1]["indent"]:
+            stack.pop()
+
+        if stack:
+            stack[-1]["children"].append(entry)
+
+        stack.append({"indent": entry["indent"], "children": entry["children"]})
+
+    return result
 
 
 def parse_zfs_list(dataset: str | None = None) -> list[dict]:
@@ -179,11 +269,33 @@ def get_pool_disks() -> dict[str, list[str]]:
     return pool_disks
 
 
+def get_boot_disk() -> str | None:
+    """Detect the host's boot disk via /proc/1/mounts (host init's mount namespace)."""
+    try:
+        with open("/proc/1/mounts") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == "/":
+                    match = re.match(r"/dev/(sd[a-z]+|nvme\d+n\d+|da\d+)", parts[0])
+                    if match:
+                        return match.group(1)
+    except OSError:
+        pass
+    return None
+
+
 def list_available_disks() -> list[dict]:
-    pool_disks = get_pool_disks()
+    pool_roles = get_pool_disk_roles()
     used_disks = set()
-    for disks in pool_disks.values():
-        used_disks.update(disks)
+    for roles in pool_roles.values():
+        # Exclude data, log, and cache disks — but NOT spares
+        used_disks.update(roles.get("data", []))
+        used_disks.update(roles.get("log", []))
+        used_disks.update(roles.get("cache", []))
+
+    boot_disk = get_boot_disk()
+    if boot_disk:
+        used_disks.add(boot_disk)
 
     # Try JSON mode first for richer info
     result = run(["lsblk", "-J", "-d", "-b", "-o", "NAME,SIZE,TYPE,MODEL,SERIAL,ROTA,TRAN", "-e", "7,11"])
