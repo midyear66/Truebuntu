@@ -1,3 +1,4 @@
+import json
 import re
 from backend.utils.shell import run
 
@@ -129,14 +130,38 @@ def get_pool_disks() -> dict[str, list[str]]:
 
 
 def list_available_disks() -> list[dict]:
-    result = run(["lsblk", "-d", "-n", "-o", "NAME,SIZE,TYPE,MODEL", "-e", "7,11"])
-    if not result.ok:
-        return []
-
     pool_disks = get_pool_disks()
     used_disks = set()
     for disks in pool_disks.values():
         used_disks.update(disks)
+
+    # Try JSON mode first for richer info
+    result = run(["lsblk", "-J", "-d", "-b", "-o", "NAME,SIZE,TYPE,MODEL,SERIAL,ROTA,TRAN", "-e", "7,11"])
+    if result.ok:
+        try:
+            data = json.loads(result.stdout)
+            available = []
+            for dev in data.get("blockdevices", []):
+                if dev.get("type") == "disk" and dev["name"] not in used_disks:
+                    size_bytes = dev.get("size")
+                    available.append({
+                        "name": dev["name"],
+                        "path": f"/dev/{dev['name']}",
+                        "size": _format_bytes(size_bytes) if size_bytes else "",
+                        "size_bytes": size_bytes or 0,
+                        "model": (dev.get("model") or "").strip(),
+                        "serial": (dev.get("serial") or "").strip(),
+                        "rota": bool(dev.get("rota")),
+                        "tran": (dev.get("tran") or "").strip(),
+                    })
+            return available
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # Fallback to text mode
+    result = run(["lsblk", "-d", "-n", "-o", "NAME,SIZE,TYPE,MODEL", "-e", "7,11"])
+    if not result.ok:
+        return []
 
     available = []
     for line in result.stdout.strip().splitlines():
@@ -148,6 +173,22 @@ def list_available_disks() -> list[dict]:
                     "name": name,
                     "path": f"/dev/{name}",
                     "size": parts[1],
+                    "size_bytes": 0,
                     "model": parts[3].strip() if len(parts) > 3 else "",
+                    "serial": "",
+                    "rota": True,
+                    "tran": "",
                 })
     return available
+
+
+def _format_bytes(b) -> str:
+    try:
+        b = int(b)
+    except (TypeError, ValueError):
+        return ""
+    for unit in ("B", "K", "M", "G", "T", "P"):
+        if abs(b) < 1024:
+            return f"{b:.1f}{unit}" if unit != "B" else f"{b}{unit}"
+        b /= 1024
+    return f"{b:.1f}E"

@@ -13,12 +13,18 @@ router = APIRouter(prefix="/pools", tags=["pools"], dependencies=[Depends(get_cu
 
 VALID_NAME = re.compile(r"^[a-zA-Z][a-zA-Z0-9_.-]*$")
 VALID_TOPOLOGIES = {"mirror", "raidz", "raidz2", "raidz3", "stripe"}
+RESERVED_NAMES = {"mirror", "raidz", "raidz1", "raidz2", "raidz3", "spare", "log", "cache", "replace", "fault", "online", "offline"}
+MIN_DISKS = {"mirror": 2, "raidz": 3, "raidz2": 4, "raidz3": 5, "stripe": 1}
+VALID_DISK_PATH = re.compile(r"^/dev/[a-zA-Z0-9]+$")
 
 
 class PoolCreateRequest(BaseModel):
     name: str
     topology: str
     disks: list[str]
+    spares: list[str] = []
+    log: list[str] = []
+    cache: list[str] = []
     force: bool = False
 
 
@@ -45,13 +51,22 @@ def pool_detail(pool: str):
 def create_pool(req: PoolCreateRequest, username: str = Depends(get_current_user)):
     if not VALID_NAME.match(req.name):
         raise HTTPException(status_code=400, detail="Invalid pool name")
+    if req.name.lower() in RESERVED_NAMES:
+        raise HTTPException(status_code=400, detail=f"Reserved pool name: {req.name}")
     if req.topology not in VALID_TOPOLOGIES:
         raise HTTPException(status_code=400, detail=f"Invalid topology: {req.topology}")
-    if len(req.disks) < 1:
-        raise HTTPException(status_code=400, detail="At least one disk required")
 
-    for disk in req.disks:
-        if not re.match(r"^/dev/[a-zA-Z0-9]+$", disk):
+    min_disks = MIN_DISKS.get(req.topology, 1)
+    if len(req.disks) < min_disks:
+        raise HTTPException(status_code=400, detail=f"{req.topology} requires at least {min_disks} disks")
+
+    # Check for duplicate disks across all roles
+    all_disks = req.disks + req.spares + req.log + req.cache
+    if len(all_disks) != len(set(all_disks)):
+        raise HTTPException(status_code=400, detail="Duplicate disk detected across roles")
+
+    for disk in all_disks:
+        if not VALID_DISK_PATH.match(disk):
             raise HTTPException(status_code=400, detail=f"Invalid disk path: {disk}")
 
     cmd = ["zpool", "create"]
@@ -61,12 +76,21 @@ def create_pool(req: PoolCreateRequest, username: str = Depends(get_current_user
     if req.topology != "stripe":
         cmd.append(req.topology)
     cmd.extend(req.disks)
+    if req.spares:
+        cmd.append("spare")
+        cmd.extend(req.spares)
+    if req.log:
+        cmd.append("log")
+        cmd.extend(req.log)
+    if req.cache:
+        cmd.append("cache")
+        cmd.extend(req.cache)
 
     result = run(cmd, timeout=60)
     if not result.ok:
         raise HTTPException(status_code=500, detail=result.stderr.strip())
 
-    logger.info(f"User '{username}' created pool '{req.name}' ({req.topology}) with disks {req.disks}")
+    logger.info(f"User '{username}' created pool '{req.name}' ({req.topology}) with disks {req.disks}, spares {req.spares}")
     return {"message": f"Pool '{req.name}' created", "pool": req.name}
 
 

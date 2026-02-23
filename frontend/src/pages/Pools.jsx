@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../api'
 import StatusBadge from '../components/StatusBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
+import PoolCreateWizard from '../components/PoolCreateWizard'
 
 export default function Pools() {
   const [pools, setPools] = useState([])
@@ -10,6 +11,7 @@ export default function Pools() {
   const [loading, setLoading] = useState(true)
   const [scrubbing, setScrubbing] = useState(null)
   const [confirmDestroy, setConfirmDestroy] = useState(null)
+  const [showWizard, setShowWizard] = useState(false)
   const [error, setError] = useState('')
 
   const load = async () => {
@@ -63,8 +65,25 @@ export default function Pools() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Storage Pools</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Storage Pools</h2>
+        {!showWizard && (
+          <button
+            onClick={() => setShowWizard(true)}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Create Pool
+          </button>
+        )}
+      </div>
       {error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+
+      {showWizard && (
+        <PoolCreateWizard
+          onCreated={() => { setShowWizard(false); load() }}
+          onCancel={() => setShowWizard(false)}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
