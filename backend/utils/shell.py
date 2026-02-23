@@ -30,6 +30,10 @@ ALLOWED_COMMANDS = {
     "chmod",
     "nsenter",
     "chpasswd",
+    "hostnamectl",
+    "timedatectl",
+    "apt-get",
+    "apt",
 }
 
 DANGEROUS_CHARS = re.compile(r"[;|&$`]")

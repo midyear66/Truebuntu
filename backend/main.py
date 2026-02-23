@@ -13,6 +13,7 @@ from backend.utils.auth import decode_token, COOKIE_NAME
 from backend.routers import (
     auth, pools, datasets, snapshots, shares, nfs,
     users, services, tasks, disks, rclone, dashboard, migrate, config,
+    system, enclosure, updates, totp,
 )
 
 logging.basicConfig(
@@ -74,6 +75,10 @@ app.include_router(rclone.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(migrate.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
+app.include_router(system.router, prefix="/api")
+app.include_router(enclosure.router, prefix="/api")
+app.include_router(updates.router, prefix="/api")
+app.include_router(totp.router, prefix="/api")
 
 
 @app.on_event("startup")

@@ -4,6 +4,18 @@ import api from '../api'
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '⊞' },
+  { label: 'Accounts', icon: '⊕', children: [
+    { path: '/users', label: 'Users' },
+  ]},
+  { label: 'System', icon: '⊜', children: [
+    { path: '/settings', label: 'Settings' },
+    { path: '/enclosures', label: 'Enclosures' },
+    { path: '/updates', label: 'Updates' },
+  ]},
+  { label: 'Tasks', icon: '⊘', children: [
+    { path: '/tasks', label: 'Scheduled Tasks' },
+    { path: '/cloud-sync', label: 'Cloud Sync' },
+  ]},
   { label: 'Storage', icon: '⊡', children: [
     { path: '/pools', label: 'Pools' },
     { path: '/datasets', label: 'Datasets' },
@@ -14,17 +26,7 @@ const NAV_ITEMS = [
     { path: '/shares', label: 'SMB Shares' },
     { path: '/nfs', label: 'NFS Exports' },
   ]},
-  { label: 'Tasks', icon: '⊘', children: [
-    { path: '/tasks', label: 'Scheduled Tasks' },
-    { path: '/cloud-sync', label: 'Cloud Sync' },
-  ]},
-  { label: 'Accounts', icon: '⊕', children: [
-    { path: '/users', label: 'Users' },
-  ]},
   { path: '/services', label: 'Services', icon: '⊛' },
-  { label: 'System', icon: '⊜', children: [
-    { path: '/settings', label: 'Settings' },
-  ]},
 ]
 
 function findGroupForPath(pathname) {

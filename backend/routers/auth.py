@@ -8,6 +8,7 @@ from backend.utils.auth import (
     hash_password,
     verify_password,
     create_token,
+    create_pending_2fa_token,
     get_current_user,
     COOKIE_NAME,
 )
@@ -65,7 +66,7 @@ def login(req: LoginRequest, response: Response):
     db = get_db()
     try:
         row = db.execute(
-            "SELECT username, password_hash FROM users WHERE username = ?",
+            "SELECT username, password_hash, totp_enabled FROM users WHERE username = ?",
             (req.username,),
         ).fetchone()
     finally:
@@ -73,6 +74,12 @@ def login(req: LoginRequest, response: Response):
 
     if not row or not verify_password(req.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Check if 2FA is enabled
+    if row["totp_enabled"]:
+        pending_token = create_pending_2fa_token(req.username)
+        logger.info(f"User '{req.username}' requires 2FA verification")
+        return {"requires_2fa": True, "pending_token": pending_token}
 
     token = create_token(req.username)
     response.set_cookie(

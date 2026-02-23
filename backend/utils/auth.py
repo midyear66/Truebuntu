@@ -41,6 +41,27 @@ def decode_token(token: str) -> str | None:
         return None
 
 
+def create_pending_2fa_token(username: str) -> str:
+    """Create a short-lived token for pending 2FA verification."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+    return jwt.encode(
+        {"sub": username, "exp": expire, "type": "2fa_pending"},
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+
+
+def decode_pending_2fa_token(token: str) -> str | None:
+    """Decode a pending 2FA token, validating the type claim."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "2fa_pending":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
 def get_current_user(request: Request) -> str:
     token = request.cookies.get(COOKIE_NAME)
     if not token:

@@ -115,6 +115,56 @@ def list_snapshots(dataset: str | None = None) -> list[dict]:
     return snapshots
 
 
+def get_pool_disk_roles() -> dict[str, dict[str, list[str]]]:
+    """Parse zpool status to get disk roles (data, spare, log, cache) per pool."""
+    result = run(["zpool", "list", "-H", "-o", "name"])
+    if not result.ok:
+        return {}
+    pool_roles = {}
+    for pool in result.stdout.strip().splitlines():
+        pool = pool.strip()
+        status = run(["zpool", "status", pool])
+        if not status.ok:
+            continue
+        roles = {"data": [], "spare": [], "log": [], "cache": []}
+        current_role = "data"
+        in_config = False
+        for line in status.stdout.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("config:"):
+                in_config = True
+                continue
+            if stripped.startswith("errors:"):
+                break
+            if not in_config:
+                continue
+            if stripped.startswith("NAME") and "STATE" in stripped:
+                continue
+            if not stripped or stripped == pool:
+                continue
+            lower = stripped.lower()
+            if lower.startswith("spares"):
+                current_role = "spare"
+                continue
+            if lower.startswith("logs"):
+                current_role = "log"
+                continue
+            if lower.startswith("cache"):
+                current_role = "cache"
+                continue
+            # Check for vdev types (mirror, raidz, etc.) — skip these lines
+            parts = stripped.split()
+            name = parts[0]
+            if name.startswith(("mirror", "raidz", "stripe")):
+                continue
+            # Match disk names
+            disk_match = re.match(r"(sd[a-z]+|nvme\d+n\d+|da\d+)", name)
+            if disk_match:
+                roles[current_role].append(disk_match.group(1))
+        pool_roles[pool] = roles
+    return pool_roles
+
+
 def get_pool_disks() -> dict[str, list[str]]:
     result = run(["zpool", "list", "-H", "-o", "name"])
     if not result.ok:

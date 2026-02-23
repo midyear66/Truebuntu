@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "/data/nas.db")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -90,6 +90,16 @@ def init_db():
             db.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (1,),
+            )
+            db.commit()
+
+        if current_version < 2:
+            logger.info("Applying schema v2")
+            db.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT NULL")
+            db.execute("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0")
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (2,),
             )
             db.commit()
 

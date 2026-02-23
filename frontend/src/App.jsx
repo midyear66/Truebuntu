@@ -16,6 +16,8 @@ import Users from './pages/Users'
 import Services from './pages/Services'
 import Disks from './pages/Disks'
 import Settings from './pages/Settings'
+import Enclosures from './pages/Enclosures'
+import Updates from './pages/Updates'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -82,6 +84,8 @@ function App() {
           <Route path="/services" element={<Services />} />
           <Route path="/disks" element={<Disks />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/enclosures" element={<Enclosures />} />
+          <Route path="/updates" element={<Updates />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>

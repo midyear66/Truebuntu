@@ -10,6 +10,7 @@ services:
       - /etc/exports:/etc/exports
       - /etc/passwd:/etc/passwd:ro
       - /etc/shadow:/etc/shadow
+      - /etc/chrony:/etc/chrony
       - /var/run/dbus:/var/run/dbus:ro
       - nas-data:/data
     env_file: .env
