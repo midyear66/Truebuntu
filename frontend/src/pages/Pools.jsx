@@ -4,6 +4,82 @@ import StatusBadge from '../components/StatusBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PoolCreateWizard from '../components/PoolCreateWizard'
 
+function DiskStateBadge({ state }) {
+  const styles = {
+    ONLINE: 'bg-green-100 text-green-800',
+    DEGRADED: 'bg-yellow-100 text-yellow-800',
+    FAULTED: 'bg-red-100 text-red-800',
+    OFFLINE: 'bg-gray-100 text-gray-800',
+    UNAVAIL: 'bg-red-100 text-red-800',
+    REMOVED: 'bg-red-100 text-red-800',
+    AVAIL: 'bg-blue-100 text-blue-800',
+  }
+  const style = styles[state] || 'bg-gray-100 text-gray-800'
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${style}`}>{state}</span>
+}
+
+function ErrorCount({ read, write, cksum }) {
+  const r = parseInt(read) || 0
+  const w = parseInt(write) || 0
+  const c = parseInt(cksum) || 0
+  if (r === 0 && w === 0 && c === 0) return <span className="text-xs text-gray-400">0/0/0</span>
+  return (
+    <span className="text-xs font-mono">
+      <span className={r > 0 ? 'text-red-600 font-bold' : ''}>{r}</span>/
+      <span className={w > 0 ? 'text-red-600 font-bold' : ''}>{w}</span>/
+      <span className={c > 0 ? 'text-red-600 font-bold' : ''}>{c}</span>
+    </span>
+  )
+}
+
+function VdevNode({ node, depth, pool, onAction }) {
+  const indent = depth * 20
+  const isFailed = ['FAULTED', 'UNAVAIL', 'REMOVED', 'OFFLINE'].includes(node.state)
+  const isDisk = node.type === 'disk'
+  const isSection = node.type === 'section'
+  const isSpare = node.state === 'AVAIL'
+
+  return (
+    <>
+      <tr className={`border-t ${isFailed && isDisk ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
+        <td className="px-4 py-2" style={{ paddingLeft: `${16 + indent}px` }}>
+          <span className={`${isDisk ? 'font-mono text-xs' : 'font-medium text-sm'} ${isSection ? 'uppercase text-gray-500 text-xs tracking-wide' : ''}`}>
+            {node.name}
+          </span>
+        </td>
+        <td className="px-4 py-2">
+          {node.state && <DiskStateBadge state={node.state} />}
+        </td>
+        <td className="px-4 py-2">
+          {!isSection && <ErrorCount read={node.read} write={node.write} cksum={node.cksum} />}
+        </td>
+        <td className="px-4 py-2 text-right space-x-1">
+          {isDisk && !isSpare && (
+            <>
+              {node.state === 'ONLINE' && (
+                <button onClick={() => onAction('offline', node.name)} className="text-yellow-600 hover:text-yellow-800 text-xs">Offline</button>
+              )}
+              {node.state === 'OFFLINE' && (
+                <button onClick={() => onAction('online', node.name)} className="text-green-600 hover:text-green-800 text-xs">Online</button>
+              )}
+              {isFailed && (
+                <button onClick={() => onAction('replace', node.name)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Replace</button>
+              )}
+              <button onClick={() => onAction('detach', node.name)} className="text-gray-500 hover:text-gray-700 text-xs">Detach</button>
+            </>
+          )}
+          {isDisk && node.state === 'ONLINE' && (
+            <button onClick={() => onAction('replace', node.name)} className="text-blue-600 hover:text-blue-800 text-xs">Replace</button>
+          )}
+        </td>
+      </tr>
+      {node.children && node.children.map(child => (
+        <VdevNode key={child.name} node={child} depth={depth + 1} pool={pool} onAction={onAction} />
+      ))}
+    </>
+  )
+}
+
 export default function Pools() {
   const [pools, setPools] = useState([])
   const [selected, setSelected] = useState(null)
@@ -11,7 +87,12 @@ export default function Pools() {
   const [loading, setLoading] = useState(true)
   const [scrubbing, setScrubbing] = useState(null)
   const [confirmDestroy, setConfirmDestroy] = useState(null)
+  const [confirmAction, setConfirmAction] = useState(null)
   const [showWizard, setShowWizard] = useState(false)
+  const [showReplace, setShowReplace] = useState(null)
+  const [availableDisks, setAvailableDisks] = useState([])
+  const [replaceDisk, setReplaceDisk] = useState('')
+  const [forceReplace, setForceReplace] = useState(false)
   const [error, setError] = useState('')
 
   const load = async () => {
@@ -56,6 +137,68 @@ export default function Pools() {
       load()
     } catch (err) {
       setError(err.response?.data?.detail || 'Destroy failed')
+    }
+  }
+
+  const handleDiskAction = async (action, diskName) => {
+    if (action === 'replace') {
+      try {
+        const res = await api.get('/disks/available')
+        setAvailableDisks(res.data)
+      } catch (err) {
+        setAvailableDisks([])
+      }
+      setShowReplace(diskName)
+      setReplaceDisk('')
+      setForceReplace(false)
+      return
+    }
+
+    if (action === 'detach') {
+      setConfirmAction({ action: 'detach', disk: diskName, title: `Detach disk ${diskName}?`, message: `This will remove ${diskName} from the pool. The pool must have redundancy to survive this.` })
+      return
+    }
+
+    if (action === 'offline') {
+      setConfirmAction({ action: 'offline', disk: diskName, title: `Take ${diskName} offline?`, message: `This will mark ${diskName} as offline. The pool must have redundancy to remain healthy.` })
+      return
+    }
+
+    if (action === 'online') {
+      try {
+        await api.post(`/pools/${selected}/disk/${diskName}/online`)
+        await loadDetail(selected)
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Failed to bring disk online')
+      }
+    }
+  }
+
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return
+    const { action, disk } = confirmAction
+    try {
+      await api.post(`/pools/${selected}/disk/${disk}/${action}`)
+      setConfirmAction(null)
+      await loadDetail(selected)
+    } catch (err) {
+      setError(err.response?.data?.detail || `Failed to ${action} disk`)
+      setConfirmAction(null)
+    }
+  }
+
+  const executeReplace = async () => {
+    if (!showReplace || !replaceDisk) return
+    try {
+      await api.post(`/pools/${selected}/replace`, {
+        old_disk: showReplace,
+        new_disk: replaceDisk,
+        force: forceReplace,
+      })
+      setShowReplace(null)
+      await loadDetail(selected)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Replace failed')
     }
   }
 
@@ -148,14 +291,85 @@ export default function Pools() {
                   <div className="text-sm whitespace-pre-wrap font-mono text-xs bg-gray-50 p-2 rounded mt-1">{detail.scan}</div>
                 </div>
               )}
-              <div>
+
+              {/* Vdev Tree */}
+              <div className="mb-4">
                 <span className="text-xs text-gray-500">Configuration</span>
-                <pre className="text-xs bg-gray-50 p-3 rounded mt-1 overflow-x-auto">{detail.config}</pre>
+                {detail.vdevs && detail.vdevs.length > 0 ? (
+                  <div className="mt-1 bg-gray-50 rounded overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b">
+                          <th className="px-4 py-2">Name</th>
+                          <th className="px-4 py-2">State</th>
+                          <th className="px-4 py-2">R/W/C Errors</th>
+                          <th className="px-4 py-2 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.vdevs.map(vdev => (
+                          <VdevNode key={vdev.name} node={vdev} depth={0} pool={selected} onAction={handleDiskAction} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <pre className="text-xs bg-gray-50 p-3 rounded mt-1 overflow-x-auto">{detail.config}</pre>
+                )}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Replace Disk Dialog */}
+      {showReplace && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2">Replace Disk</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Replace <span className="font-mono font-medium">{showReplace}</span> in pool <span className="font-medium">{selected}</span>
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">New Disk</label>
+              {availableDisks.length > 0 ? (
+                <select
+                  value={replaceDisk}
+                  onChange={e => setReplaceDisk(e.target.value)}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                >
+                  <option value="">Select a disk...</option>
+                  {availableDisks.map(d => (
+                    <option key={d.name} value={d.name}>
+                      {d.name} — {d.size} {d.model ? `(${d.model})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded">
+                  No available disks found. Insert a replacement disk and try again.
+                </div>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm mb-4">
+              <input type="checkbox" checked={forceReplace} onChange={e => setForceReplace(e.target.checked)} />
+              Force replace (skip some safety checks)
+            </label>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowReplace(null)} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={executeReplace}
+                disabled={!replaceDisk}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                Replace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmDestroy && (
         <ConfirmDialog
@@ -165,6 +379,17 @@ export default function Pools() {
           danger
           onConfirm={() => destroyPool(confirmDestroy)}
           onCancel={() => setConfirmDestroy(null)}
+        />
+      )}
+
+      {confirmAction && (
+        <ConfirmDialog
+          title={confirmAction.title}
+          message={confirmAction.message}
+          confirmText={confirmAction.action === 'detach' ? 'Detach' : confirmAction.action === 'offline' ? 'Take Offline' : 'Confirm'}
+          danger={confirmAction.action === 'detach'}
+          onConfirm={executeConfirmedAction}
+          onCancel={() => setConfirmAction(null)}
         />
       )}
     </div>

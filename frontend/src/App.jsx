@@ -12,6 +12,12 @@ import Shares from './pages/Shares'
 import NFS from './pages/NFS'
 import CloudSync from './pages/CloudSync'
 import Tasks from './pages/Tasks'
+import CronJobs from './pages/CronJobs'
+import InitShutdown from './pages/InitShutdown'
+import RsyncTasks from './pages/RsyncTasks'
+import SmartTests from './pages/SmartTests'
+import SnapshotTasks from './pages/SnapshotTasks'
+import ResilverPriority from './pages/ResilverPriority'
 import Users from './pages/Users'
 import Services from './pages/Services'
 import Disks from './pages/Disks'
@@ -79,7 +85,13 @@ function App() {
           <Route path="/shares" element={<Shares />} />
           <Route path="/nfs" element={<NFS />} />
           <Route path="/cloud-sync" element={<CloudSync />} />
-          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tasks" element={<Navigate to="/cron-jobs" replace />} />
+          <Route path="/cron-jobs" element={<CronJobs />} />
+          <Route path="/init-shutdown" element={<InitShutdown />} />
+          <Route path="/rsync-tasks" element={<RsyncTasks />} />
+          <Route path="/smart-tests" element={<SmartTests />} />
+          <Route path="/snapshot-tasks" element={<SnapshotTasks />} />
+          <Route path="/resilver" element={<ResilverPriority />} />
           <Route path="/users" element={<Users />} />
           <Route path="/services" element={<Services />} />
           <Route path="/disks" element={<Disks />} />

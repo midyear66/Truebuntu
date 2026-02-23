@@ -13,8 +13,13 @@ const NAV_ITEMS = [
     { path: '/updates', label: 'Updates' },
   ]},
   { label: 'Tasks', icon: '⊘', children: [
-    { path: '/tasks', label: 'Scheduled Tasks' },
-    { path: '/cloud-sync', label: 'Cloud Sync' },
+    { path: '/cron-jobs', label: 'Cron Jobs' },
+    { path: '/init-shutdown', label: 'Init/Shutdown Scripts' },
+    { path: '/rsync-tasks', label: 'Rsync Tasks' },
+    { path: '/smart-tests', label: 'S.M.A.R.T. Tests' },
+    { path: '/snapshot-tasks', label: 'Periodic Snapshot Tasks' },
+    { path: '/resilver', label: 'Resilver Priority' },
+    { path: '/cloud-sync', label: 'Cloud Sync Tasks' },
   ]},
   { label: 'Storage', icon: '⊡', children: [
     { path: '/pools', label: 'Pools' },

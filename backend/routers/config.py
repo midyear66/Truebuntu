@@ -21,7 +21,7 @@ def export_config(username: str = Depends(get_current_user)):
     db = get_db()
     try:
         export = {
-            "version": 1,
+            "version": 2,
             "exported_at": datetime.now().isoformat(),
             "exported_by": username,
         }
@@ -42,6 +42,27 @@ def export_config(username: str = Depends(get_current_user)):
         # Export settings
         rows = db.execute("SELECT * FROM settings").fetchall()
         export["settings"] = {r["key"]: r["value"] for r in rows}
+
+        # Export cron jobs
+        rows = db.execute("SELECT * FROM cron_jobs").fetchall()
+        export["cron_jobs"] = [dict(r) for r in rows]
+
+        # Export init/shutdown scripts
+        rows = db.execute("SELECT * FROM init_shutdown_scripts").fetchall()
+        export["init_shutdown_scripts"] = [dict(r) for r in rows]
+
+        # Export rsync tasks
+        rows = db.execute("SELECT * FROM rsync_tasks").fetchall()
+        export["rsync_tasks"] = [dict(r) for r in rows]
+
+        # Export SMART tests
+        rows = db.execute("SELECT * FROM smart_tests").fetchall()
+        export["smart_tests"] = [dict(r) for r in rows]
+
+        # Export resilver config
+        row = db.execute("SELECT * FROM resilver_config WHERE id = 1").fetchone()
+        if row:
+            export["resilver_config"] = dict(row)
 
         # Export smb.conf
         smb_path = Path("/etc/samba/smb.conf")
@@ -73,7 +94,7 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON file")
 
-    if data.get("version") != 1:
+    if data.get("version") not in (1, 2):
         raise HTTPException(status_code=400, detail="Unsupported config version")
 
     results = {}
@@ -117,6 +138,74 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
                     (key, value),
                 )
             results["settings"] = len(data["settings"])
+
+        # Import cron jobs
+        if "cron_jobs" in data:
+            for job in data["cron_jobs"]:
+                db.execute(
+                    """INSERT INTO cron_jobs (name, command, schedule, user, description, enabled)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (job["name"], job["command"], job.get("schedule", "0 * * * *"),
+                     job.get("user", "root"), job.get("description", ""), job.get("enabled", 1)),
+                )
+            results["cron_jobs"] = len(data["cron_jobs"])
+
+        # Import init/shutdown scripts
+        if "init_shutdown_scripts" in data:
+            for s in data["init_shutdown_scripts"]:
+                db.execute(
+                    """INSERT INTO init_shutdown_scripts (name, type, when_run, command, timeout, enabled)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (s["name"], s.get("type", "init"), s.get("when_run", "post"),
+                     s["command"], s.get("timeout", 30), s.get("enabled", 1)),
+                )
+            results["init_shutdown_scripts"] = len(data["init_shutdown_scripts"])
+
+        # Import rsync tasks
+        if "rsync_tasks" in data:
+            for t in data["rsync_tasks"]:
+                db.execute(
+                    """INSERT INTO rsync_tasks
+                       (name, source, destination, direction, mode, remote_host, remote_port,
+                        remote_user, remote_path, schedule, extra_args, recursive, archive,
+                        compress, delete_dest, enabled)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (t["name"], t["source"], t["destination"], t.get("direction", "push"),
+                     t.get("mode", "ssh"), t.get("remote_host", ""), t.get("remote_port", 22),
+                     t.get("remote_user", "root"), t.get("remote_path", ""),
+                     t.get("schedule", "0 0 * * *"), t.get("extra_args", ""),
+                     t.get("recursive", 1), t.get("archive", 1), t.get("compress", 1),
+                     t.get("delete_dest", 0), t.get("enabled", 1)),
+                )
+            results["rsync_tasks"] = len(data["rsync_tasks"])
+
+        # Import SMART tests
+        if "smart_tests" in data:
+            for t in data["smart_tests"]:
+                disks = t.get("disks", "[]")
+                if isinstance(disks, list):
+                    disks = json.dumps(disks)
+                db.execute(
+                    """INSERT INTO smart_tests (name, disks, test_type, schedule, enabled)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (t["name"], disks, t.get("test_type", "short"),
+                     t.get("schedule", "0 0 * * 0"), t.get("enabled", 1)),
+                )
+            results["smart_tests"] = len(data["smart_tests"])
+
+        # Import resilver config
+        if "resilver_config" in data:
+            rc = data["resilver_config"]
+            weekdays = rc.get("weekdays", "[1,2,3,4,5,6,7]")
+            if isinstance(weekdays, list):
+                weekdays = json.dumps(weekdays)
+            db.execute(
+                """UPDATE resilver_config SET enabled = ?, begin_hour = ?, begin_minute = ?,
+                   end_hour = ?, end_minute = ?, weekdays = ? WHERE id = 1""",
+                (rc.get("enabled", 0), rc.get("begin_hour", 18), rc.get("begin_minute", 0),
+                 rc.get("end_hour", 6), rc.get("end_minute", 0), weekdays),
+            )
+            results["resilver_config"] = True
 
         db.commit()
 

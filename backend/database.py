@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "/data/nas.db")
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -100,6 +100,87 @@ def init_db():
             db.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (2,),
+            )
+            db.commit()
+
+        if current_version < 3:
+            logger.info("Applying schema v3")
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS cron_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    command TEXT NOT NULL,
+                    schedule TEXT NOT NULL DEFAULT '0 * * * *',
+                    user TEXT NOT NULL DEFAULT 'root',
+                    description TEXT NOT NULL DEFAULT '',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    last_run TEXT,
+                    last_result TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS init_shutdown_scripts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL DEFAULT 'init',
+                    when_run TEXT NOT NULL DEFAULT 'post',
+                    command TEXT NOT NULL,
+                    timeout INTEGER NOT NULL DEFAULT 30,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS rsync_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    destination TEXT NOT NULL,
+                    direction TEXT NOT NULL DEFAULT 'push',
+                    mode TEXT NOT NULL DEFAULT 'ssh',
+                    remote_host TEXT NOT NULL DEFAULT '',
+                    remote_port INTEGER NOT NULL DEFAULT 22,
+                    remote_user TEXT NOT NULL DEFAULT 'root',
+                    remote_path TEXT NOT NULL DEFAULT '',
+                    schedule TEXT NOT NULL DEFAULT '0 0 * * *',
+                    extra_args TEXT NOT NULL DEFAULT '',
+                    recursive INTEGER NOT NULL DEFAULT 1,
+                    archive INTEGER NOT NULL DEFAULT 1,
+                    compress INTEGER NOT NULL DEFAULT 1,
+                    delete_dest INTEGER NOT NULL DEFAULT 0,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    last_run TEXT,
+                    last_result TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS smart_tests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    disks TEXT NOT NULL DEFAULT '[]',
+                    test_type TEXT NOT NULL DEFAULT 'short',
+                    schedule TEXT NOT NULL DEFAULT '0 0 * * 0',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    last_run TEXT,
+                    last_result TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS resilver_config (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    begin_hour INTEGER NOT NULL DEFAULT 18,
+                    begin_minute INTEGER NOT NULL DEFAULT 0,
+                    end_hour INTEGER NOT NULL DEFAULT 6,
+                    end_minute INTEGER NOT NULL DEFAULT 0,
+                    weekdays TEXT NOT NULL DEFAULT '[1,2,3,4,5,6,7]',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                INSERT OR IGNORE INTO resilver_config (id, enabled) VALUES (1, 0);
+            """)
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (3,),
             )
             db.commit()
 

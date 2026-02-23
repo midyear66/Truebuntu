@@ -14,6 +14,7 @@ from backend.routers import (
     auth, pools, datasets, snapshots, shares, nfs,
     users, services, tasks, disks, rclone, dashboard, migrate, config,
     system, enclosure, updates, totp,
+    cron_jobs, init_shutdown, rsync_tasks, smart_tests, resilver,
 )
 
 logging.basicConfig(
@@ -79,6 +80,11 @@ app.include_router(system.router, prefix="/api")
 app.include_router(enclosure.router, prefix="/api")
 app.include_router(updates.router, prefix="/api")
 app.include_router(totp.router, prefix="/api")
+app.include_router(cron_jobs.router, prefix="/api")
+app.include_router(init_shutdown.router, prefix="/api")
+app.include_router(rsync_tasks.router, prefix="/api")
+app.include_router(smart_tests.router, prefix="/api")
+app.include_router(resilver.router, prefix="/api")
 
 
 @app.on_event("startup")

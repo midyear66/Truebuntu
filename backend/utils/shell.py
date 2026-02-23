@@ -34,7 +34,15 @@ ALLOWED_COMMANDS = {
     "timedatectl",
     "apt-get",
     "apt",
+    "rsync",
+    "crontab",
+    "tee",
+    "rm",
 }
+
+# Note: Cron jobs and init/shutdown scripts may contain shell metacharacters
+# (pipes, redirects, etc.). Those routers use subprocess.run() directly with
+# nsenter instead of this module's run(), which blocks dangerous chars.
 
 DANGEROUS_CHARS = re.compile(r"[;|&$`]")
 
