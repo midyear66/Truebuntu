@@ -1,0 +1,17 @@
+services:
+  nas-webui:
+    build: .
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    volumes:
+      - /etc/samba:/etc/samba
+      - /etc/exports:/etc/exports
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/shadow:/etc/shadow
+      - /var/run/dbus:/var/run/dbus:ro
+      - nas-data:/data
+    env_file: .env
+
+volumes:
+  nas-data:
