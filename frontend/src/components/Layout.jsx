@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { path: '/users', label: 'Users', icon: '⊕' },
   { path: '/services', label: 'Services', icon: '⊛' },
   { path: '/disks', label: 'Disks', icon: '⊚' },
+  { path: '/settings', label: 'Settings', icon: '⊜' },
 ]
 
 export default function Layout({ children, user }) {
