@@ -1,24 +1,66 @@
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '⊞' },
-  { path: '/pools', label: 'Pools', icon: '⊡' },
-  { path: '/datasets', label: 'Datasets', icon: '⊟' },
-  { path: '/snapshots', label: 'Snapshots', icon: '⊙' },
-  { path: '/shares', label: 'SMB Shares', icon: '⊞' },
-  { path: '/nfs', label: 'NFS Exports', icon: '⊠' },
-  { path: '/cloud-sync', label: 'Cloud Sync', icon: '⇧' },
-  { path: '/tasks', label: 'Tasks', icon: '⊘' },
-  { path: '/users', label: 'Users', icon: '⊕' },
+  { label: 'Storage', icon: '⊡', children: [
+    { path: '/pools', label: 'Pools' },
+    { path: '/datasets', label: 'Datasets' },
+    { path: '/snapshots', label: 'Snapshots' },
+    { path: '/disks', label: 'Disks' },
+  ]},
+  { label: 'Sharing', icon: '⊞', children: [
+    { path: '/shares', label: 'SMB Shares' },
+    { path: '/nfs', label: 'NFS Exports' },
+  ]},
+  { label: 'Tasks', icon: '⊘', children: [
+    { path: '/tasks', label: 'Scheduled Tasks' },
+    { path: '/cloud-sync', label: 'Cloud Sync' },
+  ]},
+  { label: 'Accounts', icon: '⊕', children: [
+    { path: '/users', label: 'Users' },
+  ]},
   { path: '/services', label: 'Services', icon: '⊛' },
-  { path: '/disks', label: 'Disks', icon: '⊚' },
-  { path: '/settings', label: 'Settings', icon: '⊜' },
+  { label: 'System', icon: '⊜', children: [
+    { path: '/settings', label: 'Settings' },
+  ]},
 ]
+
+function findGroupForPath(pathname) {
+  for (const item of NAV_ITEMS) {
+    if (item.children) {
+      for (const child of item.children) {
+        if (child.path === pathname) return item.label
+      }
+    }
+  }
+  return null
+}
 
 export default function Layout({ children, user }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [expanded, setExpanded] = useState(() => {
+    const group = findGroupForPath(location.pathname)
+    return group ? new Set([group]) : new Set()
+  })
+
+  useEffect(() => {
+    const group = findGroupForPath(location.pathname)
+    if (group && !expanded.has(group)) {
+      setExpanded(prev => new Set(prev).add(group))
+    }
+  }, [location.pathname])
+
+  const toggleGroup = (label) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
+  }
 
   const handleLogout = async () => {
     try {
@@ -34,18 +76,50 @@ export default function Layout({ children, user }) {
           <h1 className="text-lg font-bold text-white">NAS Web UI</h1>
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
-          {NAV_ITEMS.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center px-4 py-2 text-sm hover:bg-gray-800 hover:text-white transition-colors ${
-                location.pathname === item.path ? 'bg-gray-800 text-white border-r-2 border-blue-500' : ''
-              }`}
-            >
-              <span className="mr-3 text-base">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
+          {NAV_ITEMS.map(item =>
+            item.children ? (
+              <div key={item.label}>
+                <button
+                  onClick={() => toggleGroup(item.label)}
+                  className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-800 hover:text-white transition-colors ${
+                    item.children.some(c => c.path === location.pathname) ? 'text-white' : ''
+                  }`}
+                >
+                  <span className="flex items-center">
+                    <span className="mr-3 text-base">{item.icon}</span>
+                    <span className="font-medium uppercase text-xs tracking-wide">{item.label}</span>
+                  </span>
+                  <span className="text-xs">{expanded.has(item.label) ? '▾' : '▸'}</span>
+                </button>
+                {expanded.has(item.label) && (
+                  <div>
+                    {item.children.map(child => (
+                      <Link
+                        key={child.path}
+                        to={child.path}
+                        className={`flex items-center pl-10 pr-4 py-2 text-sm hover:bg-gray-800 hover:text-white transition-colors ${
+                          location.pathname === child.path ? 'bg-gray-800 text-white border-r-2 border-blue-500' : ''
+                        }`}
+                      >
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center px-4 py-2 text-sm hover:bg-gray-800 hover:text-white transition-colors ${
+                  location.pathname === item.path ? 'bg-gray-800 text-white border-r-2 border-blue-500' : ''
+                }`}
+              >
+                <span className="mr-3 text-base">{item.icon}</span>
+                {item.label}
+              </Link>
+            )
+          )}
         </nav>
         <div className="p-4 border-t border-gray-700 text-xs text-gray-500">
           v0.1.0
