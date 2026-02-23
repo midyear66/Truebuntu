@@ -40,7 +40,7 @@ A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Provid
 - **Updates** -- Check for and apply system package updates via apt.
 - **System Logs** -- Real-time journalctl log viewer with unit, priority, and line count filtering, plus optional auto-refresh.
 - **Email Alerts** -- SMTP configuration with test email and per-category alert toggles (cron, rsync, SMART, replication failures).
-- **Dashboard** -- Rich card-based overview with system info, CPU usage/temps, memory breakdown (services vs ZFS ARC vs free), per-pool health with vdev/disk details, per-interface throughput and link state, services, disk temperatures, and recent snapshots. Drag-and-drop card rearrangement with localStorage persistence via a "Customize" mode.
+- **Dashboard** -- Rich card-based overview with system info, CPU usage/temps, memory breakdown (services vs ZFS ARC vs free), per-pool health with vdev/disk details, per-interface throughput and link state, services, disk temperatures, and recent snapshots. Drag-and-drop card rearrangement with localStorage persistence via a "Customize" mode. Configurable polling interval (2s, 5s, 10s, 30s, 60s, or off) from the header.
 
 ### Security
 - **JWT Authentication** -- HTTP-only cookie-based sessions with 24-hour expiry.
@@ -57,6 +57,7 @@ A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Provid
 - **Dark Mode** -- Class-based dark mode with localStorage persistence and system-preference fallback. Toggle via sun/moon button in the header.
 - **Collapsible Sidebar** -- Accordion-style navigation with expandable sections for Storage, Tasks, System, Sharing, and Accounts.
 - **Customizable Dashboard** -- Drag-and-drop tile rearrangement with grip handles, dashed-ring edit mode, and order saved to localStorage.
+- **Polling Interval** -- Header dropdown to adjust dashboard auto-refresh rate (2s / 5s / 10s / 30s / 60s / Off). Persisted to localStorage and applied immediately without page reload.
 - **User Menu** -- Header dropdown with change password and logout actions.
 
 ## Tech Stack

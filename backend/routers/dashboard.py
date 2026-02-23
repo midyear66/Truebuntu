@@ -292,6 +292,18 @@ def _has_errors(node: dict) -> bool:
         return False
 
 
+def _normalize_speed(raw: str) -> str:
+    """Convert ethtool speed like '10000Mb/s' to '10 Gb/s'."""
+    import re
+    m = re.match(r"^(\d+)Mb/s$", raw)
+    if m:
+        mbps = int(m.group(1))
+        if mbps >= 1000:
+            return f"{mbps // 1000} Gb/s"
+        return f"{mbps} Mb/s"
+    return raw
+
+
 # --- Interfaces ---
 
 def _get_interfaces() -> list[dict]:
@@ -368,6 +380,10 @@ def _get_interfaces() -> list[dict]:
             iface_type = "physical" if link.get("link_type") == "ether" else "virtual"
 
         state = iface.get("operstate", "UNKNOWN").lower()
+        # ZeroTier and similar tunnel interfaces report operstate UNKNOWN
+        # even when functional — treat as up if they have addresses
+        if state == "unknown" and addrs:
+            state = "up"
         mac = iface.get("address", "")
         mtu = iface.get("mtu")
 
@@ -378,9 +394,34 @@ def _get_interfaces() -> list[dict]:
                 for line in eth_result.stdout.splitlines():
                     line = line.strip()
                     if line.startswith("Speed:"):
-                        ethtool["speed"] = line.split(":", 1)[1].strip()
+                        val = line.split(":", 1)[1].strip()
+                        if "Unknown" not in val:
+                            ethtool["speed"] = _normalize_speed(val)
                     elif line.startswith("Duplex:"):
-                        ethtool["duplex"] = line.split(":", 1)[1].strip()
+                        val = line.split(":", 1)[1].strip()
+                        if "Unknown" not in val:
+                            ethtool["duplex"] = val
+            # Fallback: read speed from sysfs (returns Mb/s integer, -1 if unknown)
+            if not ethtool["speed"]:
+                spd = run([*NSENTER, "cat", f"/sys/class/net/{name}/speed"], timeout=5)
+                if spd.ok:
+                    try:
+                        mbps = int(spd.stdout.strip())
+                        if mbps > 0:
+                            if mbps >= 1000:
+                                ethtool["speed"] = f"{mbps // 1000} Gb/s"
+                            else:
+                                ethtool["speed"] = f"{mbps} Mb/s"
+                    except ValueError:
+                        pass
+            # Last resort: show driver name for virtual NICs (virtio, vmxnet3, etc.)
+            if not ethtool["speed"]:
+                drv = run([*NSENTER, "cat", f"/sys/class/net/{name}/device/uevent"], timeout=5)
+                if drv.ok:
+                    for line in drv.stdout.splitlines():
+                        if line.startswith("DRIVER="):
+                            ethtool["speed"] = line.split("=", 1)[1].strip()
+                            break
 
         traffic = traffic_map.get(name, {"rx_bytes": 0, "tx_bytes": 0})
 

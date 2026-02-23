@@ -56,6 +56,26 @@ export default function Layout({ children, user }) {
   const { theme, toggle } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showPwModal, setShowPwModal] = useState(false)
+  const [pollInterval, setPollInterval] = useState(() =>
+    parseInt(localStorage.getItem('poll-interval')) || 5
+  )
+  const [showPollMenu, setShowPollMenu] = useState(false)
+
+  const pollOptions = [
+    { label: '2s', value: 2 },
+    { label: '5s', value: 5 },
+    { label: '10s', value: 10 },
+    { label: '30s', value: 30 },
+    { label: '60s', value: 60 },
+    { label: 'Off', value: 0 },
+  ]
+
+  const changePoll = (seconds) => {
+    setPollInterval(seconds)
+    localStorage.setItem('poll-interval', String(seconds))
+    window.dispatchEvent(new Event('poll-interval-changed'))
+    setShowPollMenu(false)
+  }
   const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm: '' })
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
@@ -172,6 +192,40 @@ export default function Layout({ children, user }) {
             >
               {theme === 'dark' ? '\u2600' : '\u263E'}
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowPollMenu(!showPollMenu)}
+                className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                title="Polling interval"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>{pollInterval > 0 ? `${pollInterval}s` : 'Off'}</span>
+                <span className="text-xs">{showPollMenu ? '\u25B4' : '\u25BE'}</span>
+              </button>
+              {showPollMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowPollMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-50">
+                    {pollOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => changePoll(opt.value)}
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                          pollInterval === opt.value
+                            ? 'text-blue-600 dark:text-blue-400 font-medium'
+                            : 'text-gray-700 dark:text-gray-200'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}

@@ -459,6 +459,7 @@ export default function Dashboard() {
   const [ifaceRates, setIfaceRates] = useState({})
   const [editMode, setEditMode] = useState(false)
   const [activeId, setActiveId] = useState(null)
+  const [pollKey, setPollKey] = useState(0)
   const prevIfaces = useRef(null)
   const prevTime = useRef(null)
 
@@ -518,11 +519,19 @@ export default function Dashboard() {
   const [order, reorder] = useCardOrder(currentCardIds)
 
   useEffect(() => {
+    const handler = () => setPollKey(k => k + 1)
+    window.addEventListener('poll-interval-changed', handler)
+    return () => window.removeEventListener('poll-interval-changed', handler)
+  }, [])
+
+  useEffect(() => {
     if (activeId) return // Don't poll mid-drag
     load()
-    const interval = setInterval(load, 5000)
+    const seconds = parseInt(localStorage.getItem('poll-interval')) || 5
+    if (seconds <= 0) return // "Off" — no auto-polling
+    const interval = setInterval(load, seconds * 1000)
     return () => clearInterval(interval)
-  }, [activeId])
+  }, [activeId, pollKey])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading dashboard...</div>
   if (!data) return <div className="text-red-500">Failed to load dashboard</div>
