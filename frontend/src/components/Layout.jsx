@@ -44,6 +44,7 @@ const NAV_ITEMS = [
     { path: '/nfs', label: 'NFS exports' },
   ]},
   { path: '/services', label: 'Services', icon: '\u{1F527}' },
+  { path: '/shell', label: 'Shell', icon: '\u{1F4DF}' },
 ]
 
 function findGroupForPath(pathname) {

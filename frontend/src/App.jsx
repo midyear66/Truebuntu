@@ -38,6 +38,7 @@ import FTPConfig from './pages/FTPConfig'
 import UPSConfig from './pages/UPSConfig'
 import OpenVPNConfig from './pages/OpenVPNConfig'
 import SNMPConfig from './pages/SNMPConfig'
+import Shell from './pages/Shell'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -115,6 +116,7 @@ function App() {
           <Route path="/services/ups" element={<UPSConfig />} />
           <Route path="/services/openvpn" element={<OpenVPNConfig />} />
           <Route path="/services/snmp" element={<SNMPConfig />} />
+          <Route path="/shell" element={<Shell />} />
           <Route path="/disks" element={<Disks />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/enclosures" element={<Enclosures />} />
