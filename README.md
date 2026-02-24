@@ -1,6 +1,6 @@
 # Truebuntu
 
-A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers.
+A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Built as a modern replacement for the aging TrueNAS Core (FreeBSD) on compact hardware like the [TrueNAS Mini](https://www.truenas.com/truenas-mini/) — run a full-featured storage OS on Ubuntu with a single Docker container instead of a dedicated appliance OS.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)
@@ -9,17 +9,19 @@ A self-hosted NAS management web UI for Ubuntu-based ZFS storage servers.
 
 ## Features
 
-**Storage** -- ZFS pool creation (mirror, raidz, raidz2, raidz3, stripe), datasets, snapshots, snapshot policies, ZFS replication, disk replace/spare/attach
+**Storage** -- ZFS pool creation (mirror, raidz, raidz2, raidz3, stripe), datasets, snapshots, snapshot policies, ZFS replication, disk replace/spare/attach/offline/online/detach
 
-**Sharing** -- SMB shares with per-share permissions and session view, NFS exports with client access lists
+**Sharing** -- SMB shares with per-share permissions and session view, NFS exports with client access lists, dedicated SMB user management
 
-**Monitoring** -- SMART health and scheduled tests, disk temperatures, enclosure view with pool mapping
+**Monitoring** -- SMART health and scheduled tests, disk temperatures, enclosure view with pool mapping, per-thread CPU usage, memory and ZFS ARC tracking
 
-**Tasks** -- Cron jobs, rsync backups, resilver priority windows, init/shutdown scripts, cloud sync via rclone
+**Tasks** -- Cron jobs, rsync backups (local and SSH), resilver priority windows, init/shutdown scripts, cloud sync via rclone, background job queue with cancellation
 
-**Networking** -- Interface configuration (DHCP/static), network bonds (LACP, active-backup, etc.), DNS and routing table
+**Networking** -- Interface configuration (DHCP/static), network bonds (LACP, active-backup, balance-xor, etc.), DNS, static routes, IPMI configuration
 
-**System** -- Services control, hostname/timezone/NTP, package updates, journalctl log viewer, email alerts, config export/import, TrueNAS migration
+**Services** -- Dynamic DNS (ddclient), FTP (vsftpd), UPS monitoring (NUT), OpenVPN client/server, SNMP
+
+**System** -- Services control, hostname/timezone/NTP, package updates, journalctl log viewer, email alerts, config export/import, TrueNAS migration, browser-based web shell
 
 **Security** -- JWT auth with HTTP-only cookies, TOTP 2FA, role-based access (admin/user), audit logging
 
@@ -61,6 +63,54 @@ Once complete, open `http://<your-server-ip>` in a browser and create your admin
 
 </details>
 
+## Hardware Requirements
+
+Designed to run on compact, low-power NAS hardware like the TrueNAS Mini series. Install Ubuntu on the same box that previously ran TrueNAS Core and deploy Truebuntu as a Docker container.
+
+The install script enforces **x86_64** architecture and **8 GB minimum RAM**.
+
+### Minimum
+
+| Component   | Spec                              |
+|-------------|-----------------------------------|
+| CPU         | x86_64, 2 cores                   |
+| RAM         | 8 GB                              |
+| Boot disk   | 32 GB SSD                         |
+| Data disks  | 1+ disks (any size)               |
+| Network     | 1 Gb Ethernet                     |
+| OS          | Ubuntu 20.04+ or Debian 11+       |
+
+### Recommended (home / small office)
+
+| Component   | Spec                              |
+|-------------|-----------------------------------|
+| CPU         | x86_64, 4+ cores                  |
+| RAM         | 16 GB (1 GB per TB of ZFS storage)|
+| Boot disk   | 64 GB SSD                         |
+| Data disks  | 2+ disks in mirror or raidz       |
+| Network     | 1 Gb Ethernet                     |
+| UPS         | Recommended (NUT supported)       |
+
+### Reference: TrueNAS Mini
+
+This project was built and tested on TrueNAS Mini hardware running Ubuntu:
+
+| Model         | CPU                        | RAM         | Drive Bays |
+|---------------|----------------------------|-------------|------------|
+| Mini           | Intel Atom C2558 (4-core) | 8 GB ECC    | 5 hot-swap |
+| Mini X+        | Intel Atom C3558 (4-core) | 8 GB ECC    | 5 hot-swap |
+| Mini XL+       | Intel Atom C3558 (4-core) | 16 GB ECC   | 7+1 hot-swap |
+| Mini R         | Intel Xeon D (8-core)     | 32 GB ECC   | 12 hot-swap |
+
+These low-power Atom/Xeon-D systems are ideal targets -- install Ubuntu Server, import your existing ZFS pools, and run Truebuntu.
+
+### Notes
+
+- **ZFS memory rule of thumb:** allocate ~1 GB of RAM per TB of raw storage for the ARC read cache. 8 GB is adequate for up to ~4 TB; 16 GB covers most home setups.
+- **ECC RAM** is recommended for data integrity but not required.
+- The application itself (Docker, FastAPI, React, SQLite) uses under 500 MB. The majority of RAM goes to ZFS ARC and host services (Samba, NFS).
+- ARM / aarch64 is **not supported** -- the install script checks for x86_64.
+
 ## Architecture
 
 ```
@@ -78,7 +128,8 @@ Once complete, open `http://<your-server-ip>` in a browser and create your admin
 │                    │  /api/rclone   /api/system │  │
 │                    │  /api/network  /api/logs   │  │
 │                    │  /api/alerts   /api/repl.  │  │
-│                    │  ...26 router modules      │  │
+│                    │  /api/ddns     /api/shell  │  │
+│                    │  ...37 router modules      │  │
 │                    │                            │  │
 │                    │  SQLite (/data/nas.db)     │  │
 │                    └────────────────────────────┘  │
@@ -135,7 +186,9 @@ All endpoints are prefixed with `/api`. Authentication is required for all route
 | pools            | `/pools`, `/disks`  | ZFS pool and available disk mgmt    |
 | datasets         | `/datasets`         | ZFS dataset CRUD                    |
 | snapshots        | `/snapshots`        | Snapshot and snapshot policy mgmt   |
+| snapshot_policies| `/snapshot-policies`| Automated snapshot scheduling       |
 | shares           | `/shares`           | SMB share management                |
+| smb_users        | `/smb-users`        | Samba user management               |
 | nfs              | `/nfs`              | NFS export management               |
 | disks            | `/disks`            | Disk SMART and temperature          |
 | enclosure        | `/enclosure`        | Hardware enclosure view             |
@@ -143,10 +196,11 @@ All endpoints are prefixed with `/api`. Authentication is required for all route
 | services         | `/services`         | Systemd service control             |
 | system           | `/system`           | Hostname, timezone, NTP settings    |
 | updates          | `/updates`          | System package updates              |
-| network          | `/network`          | Interface, bond, DNS, route mgmt   |
+| network          | `/network`          | Interface, bond, DNS, route, IPMI   |
 | replication      | `/replication`      | ZFS send/receive replication tasks  |
 | logs             | `/logs`             | Journalctl log viewer               |
 | alerts           | `/alerts`           | SMTP config and alert categories    |
+| jobs             | `/jobs`             | Background job tracking             |
 | tasks            | `/tasks`            | Generic scheduled tasks             |
 | cron_jobs        | `/cron-jobs`        | Cron job scheduling                 |
 | rsync_tasks      | `/rsync-tasks`      | Rsync backup tasks                  |
@@ -154,6 +208,12 @@ All endpoints are prefixed with `/api`. Authentication is required for all route
 | resilver         | `/resilver`         | Resilver priority configuration     |
 | init_shutdown    | `/init-shutdown`    | Startup/shutdown scripts            |
 | rclone           | `/rclone`           | Cloud sync remote management        |
+| ddns             | `/ddns`             | Dynamic DNS configuration           |
+| ftp              | `/ftp`              | FTP server configuration            |
+| ups              | `/ups`              | UPS monitoring (NUT)                |
+| openvpn          | `/openvpn`          | OpenVPN client/server configuration |
+| snmp             | `/snmp`             | SNMP daemon configuration           |
+| shell            | `/shell`            | Browser-based web terminal (PTY)    |
 | config           | `/config`           | Config export/import, audit log     |
 | migrate          | `/migrate`          | TrueNAS config migration            |
 
