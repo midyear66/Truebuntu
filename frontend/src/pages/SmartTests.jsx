@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import useJobPoller from '../useJobPoller'
 
 export default function SmartTests() {
   const [tests, setTests] = useState([])
@@ -8,8 +9,8 @@ export default function SmartTests() {
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', disks: [], test_type: 'short', schedule: '0 0 * * 0', enabled: true })
-  const [running, setRunning] = useState(null)
   const [error, setError] = useState('')
+  const { submitJob, cancelJob, getJobForResource } = useJobPoller()
 
   const load = async () => {
     try {
@@ -61,15 +62,14 @@ export default function SmartTests() {
   }
 
   const runTest = async (id) => {
-    setRunning(id)
     try {
-      const res = await api.post(`/smart-tests/${id}/run`)
-      alert(res.data.result || 'Test started')
-      load()
+      await submitJob(() => api.post(`/smart-tests/${id}/run`))
     } catch (err) {
-      setError(err.response?.data?.detail || 'Run failed')
-    } finally {
-      setRunning(null)
+      if (err.response?.status === 409) {
+        setError('This SMART test is already running')
+      } else {
+        setError(err.response?.data?.detail || 'Run failed')
+      }
     }
   }
 
@@ -162,9 +162,13 @@ export default function SmartTests() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
-                  <button onClick={() => runTest(t.id)} disabled={running === t.id} className="text-blue-600 hover:text-blue-800 text-xs">
-                    {running === t.id ? 'Running...' : 'Run'}
-                  </button>
+                  {getJobForResource(`smart_test:${t.id}`) ? (
+                    <button onClick={() => cancelJob(getJobForResource(`smart_test:${t.id}`).id)} className="text-red-600 hover:text-red-800 text-xs">
+                      Running... Cancel
+                    </button>
+                  ) : (
+                    <button onClick={() => runTest(t.id)} className="text-blue-600 hover:text-blue-800 text-xs">Run</button>
+                  )}
                   <button onClick={() => startEdit(t)} className="text-gray-600 dark:text-gray-300 hover:text-gray-800 text-xs">Edit</button>
                   <button onClick={() => deleteTest(t.id)} className="text-red-600 hover:text-red-800 text-xs">Delete</button>
                 </td>

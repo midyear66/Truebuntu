@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import useJobPoller from '../useJobPoller'
 
 export default function CronJobs() {
   const [jobs, setJobs] = useState([])
@@ -7,8 +8,8 @@ export default function CronJobs() {
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', command: '', schedule: '0 * * * *', user: 'root', description: '', enabled: true })
-  const [running, setRunning] = useState(null)
   const [error, setError] = useState('')
+  const { submitJob, cancelJob, getJobForResource } = useJobPoller()
 
   const load = async () => {
     try {
@@ -49,15 +50,14 @@ export default function CronJobs() {
   }
 
   const runJob = async (id) => {
-    setRunning(id)
     try {
-      const res = await api.post(`/cron-jobs/${id}/run`)
-      alert(res.data.result || 'Job executed')
-      load()
+      await submitJob(() => api.post(`/cron-jobs/${id}/run`))
     } catch (err) {
-      setError(err.response?.data?.detail || 'Run failed')
-    } finally {
-      setRunning(null)
+      if (err.response?.status === 409) {
+        setError('This cron job is already running')
+      } else {
+        setError(err.response?.data?.detail || 'Run failed')
+      }
     }
   }
 
@@ -133,9 +133,13 @@ export default function CronJobs() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
-                  <button onClick={() => runJob(j.id)} disabled={running === j.id} className="text-blue-600 hover:text-blue-800 text-xs">
-                    {running === j.id ? 'Running...' : 'Run'}
-                  </button>
+                  {getJobForResource(`cron_job:${j.id}`) ? (
+                    <button onClick={() => cancelJob(getJobForResource(`cron_job:${j.id}`).id)} className="text-red-600 hover:text-red-800 text-xs">
+                      Running... Cancel
+                    </button>
+                  ) : (
+                    <button onClick={() => runJob(j.id)} className="text-blue-600 hover:text-blue-800 text-xs">Run</button>
+                  )}
                   <button onClick={() => startEdit(j)} className="text-gray-600 dark:text-gray-300 hover:text-gray-800 text-xs">Edit</button>
                   <button onClick={() => deleteJob(j.id)} className="text-red-600 hover:text-red-800 text-xs">Delete</button>
                 </td>

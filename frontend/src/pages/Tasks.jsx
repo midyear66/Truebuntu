@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import useJobPoller from '../useJobPoller'
 
 export default function Tasks() {
   const [tasks, setTasks] = useState([])
@@ -7,8 +8,8 @@ export default function Tasks() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ name: '', type: 'scrub', schedule: '0 0 * * 0', config: {} })
   const [configStr, setConfigStr] = useState('{}')
-  const [running, setRunning] = useState(null)
   const [error, setError] = useState('')
+  const { submitJob, cancelJob, getJobForResource } = useJobPoller()
 
   const load = async () => {
     try {
@@ -36,15 +37,14 @@ export default function Tasks() {
   }
 
   const runTask = async (id) => {
-    setRunning(id)
     try {
-      const res = await api.post(`/tasks/${id}/run`)
-      alert(res.data.result || 'Task executed')
-      load()
+      await submitJob(() => api.post(`/tasks/${id}/run`))
     } catch (err) {
-      setError(err.response?.data?.detail || 'Run failed')
-    } finally {
-      setRunning(null)
+      if (err.response?.status === 409) {
+        setError('This task is already running')
+      } else {
+        setError(err.response?.data?.detail || 'Run failed')
+      }
     }
   }
 
@@ -116,9 +116,13 @@ export default function Tasks() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
-                  <button onClick={() => runTask(t.id)} disabled={running === t.id} className="text-blue-600 hover:text-blue-800 text-xs">
-                    {running === t.id ? 'Running...' : 'Run Now'}
-                  </button>
+                  {getJobForResource(`task:${t.id}`) ? (
+                    <button onClick={() => cancelJob(getJobForResource(`task:${t.id}`).id)} className="text-red-600 hover:text-red-800 text-xs">
+                      Running... Cancel
+                    </button>
+                  ) : (
+                    <button onClick={() => runTask(t.id)} className="text-blue-600 hover:text-blue-800 text-xs">Run Now</button>
+                  )}
                   <button onClick={() => deleteTask(t.id)} className="text-red-600 hover:text-red-800 text-xs">Delete</button>
                 </td>
               </tr>

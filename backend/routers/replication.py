@@ -1,5 +1,4 @@
 import logging
-import subprocess
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -166,46 +165,51 @@ def run_replication_task(task_id: int, username: str = Depends(get_current_user)
 
     full_cmd = f"{snap_cmd} && {send_cmd} | {ssh_cmd} {recv_cmd}"
 
-    try:
-        proc = subprocess.run(
-            ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "sh", "-c", full_cmd],
-            capture_output=True, text=True, timeout=7200,
-        )
-        result_text = proc.stdout or proc.stderr or f"Exit code: {proc.returncode}"
-        success = proc.returncode == 0
-    except subprocess.TimeoutExpired:
-        result_text = "Replication timed out after 2 hours"
-        success = False
-    except Exception as e:
-        result_text = str(e)
-        success = False
-
-    db = get_db()
-    try:
-        if success:
-            db.execute(
-                "UPDATE zfs_replication_tasks SET last_run = ?, last_result = ?, last_snapshot = ? WHERE id = ?",
-                (datetime.now().isoformat(), result_text[:1000], snap_name, task_id),
-            )
-        else:
-            db.execute(
-                "UPDATE zfs_replication_tasks SET last_run = ?, last_result = ? WHERE id = ?",
-                (datetime.now().isoformat(), result_text[:1000], task_id),
-            )
-        db.commit()
-    finally:
-        db.close()
-
-    if not success:
+    def on_complete(job_id, status, stdout, stderr, returncode):
+        result_text = stdout or stderr or f"Exit code: {returncode}"
+        success = status == "completed"
+        db2 = get_db()
         try:
-            from backend.utils.email import send_alert
-            send_alert("replication_failures",
-                        f"Replication failed: {task['name']}",
-                        f"Task: {task['name']}\nSource: {task['source_dataset']}\n"
-                        f"Destination: {task['destination_host']}:{task['destination_dataset']}\n"
-                        f"Error: {result_text[:500]}")
-        except Exception:
-            pass
+            if success:
+                db2.execute(
+                    "UPDATE zfs_replication_tasks SET last_run = ?, last_result = ?, last_snapshot = ? WHERE id = ?",
+                    (datetime.now().isoformat(), result_text[:1000], snap_name, task_id),
+                )
+            else:
+                db2.execute(
+                    "UPDATE zfs_replication_tasks SET last_run = ?, last_result = ? WHERE id = ?",
+                    (datetime.now().isoformat(), result_text[:1000], task_id),
+                )
+            db2.commit()
+        finally:
+            db2.close()
+        if not success:
+            try:
+                from backend.utils.email import send_alert
+                send_alert("replication_failures",
+                           f"Replication failed: {task['name']}",
+                           f"Task: {task['name']}\nSource: {task['source_dataset']}\n"
+                           f"Destination: {task['destination_host']}:{task['destination_dataset']}\n"
+                           f"Error: {result_text[:500]}")
+            except Exception:
+                pass
 
-    logger.info(f"User '{username}' ran replication task id={task_id} (success={success})")
-    return {"message": "Replication task executed", "result": result_text[:1000]}
+    from backend.utils.jobs import JobManager
+    mgr = JobManager()
+    try:
+        job_id = mgr.submit(
+            job_type="replication",
+            description=f"Replication: {task['name']}",
+            resource=f"replication:{task_id}",
+            started_by=username,
+            shell_cmd=full_cmd,
+            timeout=7200,
+            on_complete=on_complete,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    logger.info(f"User '{username}' ran replication task id={task_id} (job {job_id})")
+    return {"job_id": job_id, "message": "Replication task started"}

@@ -3,6 +3,7 @@ import api from '../api'
 import StatusBadge from '../components/StatusBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PoolCreateWizard from '../components/PoolCreateWizard'
+import useJobPoller from '../useJobPoller'
 
 function DiskStateBadge({ state }) {
   const styles = {
@@ -149,6 +150,7 @@ export default function Pools() {
   const [importName, setImportName] = useState('')
   const [forceImport, setForceImport] = useState(false)
   const [importError, setImportError] = useState('')
+  const { submitJob, cancelJob, getJobForResource } = useJobPoller()
 
   const load = async () => {
     try {
@@ -174,10 +176,14 @@ export default function Pools() {
   const startScrub = async (pool) => {
     setScrubbing(pool)
     try {
-      await api.post(`/pools/${pool}/scrub`)
+      await submitJob(() => api.post(`/pools/${pool}/scrub`))
       await loadDetail(pool)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Scrub failed')
+      if (err.response?.status === 409) {
+        setError(`A scrub is already running on pool '${pool}'`)
+      } else {
+        setError(err.response?.data?.detail || 'Scrub failed')
+      }
     } finally {
       setScrubbing(null)
     }

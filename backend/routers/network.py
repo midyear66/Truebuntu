@@ -7,6 +7,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
+from backend.database import get_db
 from backend.utils.auth import get_current_user
 from backend.utils.shell import run
 
@@ -56,6 +57,42 @@ class BondUpdate(BaseModel):
     dns_servers: list[str] | None = None
     lacp_rate: str | None = None
     mii_monitor_interval: int | None = None
+
+
+class GlobalConfig(BaseModel):
+    hostname: str | None = None
+    domain: str | None = None
+    additional_domains: list[str] | None = None
+    nameserver1: str | None = None
+    nameserver2: str | None = None
+    nameserver3: str | None = None
+    ipv4_gateway: str | None = None
+    ipv6_gateway: str | None = None
+    service_announcement: dict | None = None
+    http_proxy: str | None = None
+    netwait_enabled: bool = False
+    netwait_ip_list: list[str] | None = None
+    host_name_database: str | None = None
+
+
+class StaticRouteCreate(BaseModel):
+    destination: str
+    gateway: str
+    description: str = ""
+
+
+class StaticRouteDelete(BaseModel):
+    destination: str
+    gateway: str
+
+
+class IPMIConfig(BaseModel):
+    dhcp: bool = True
+    ipv4_address: str | None = None
+    ipv4_netmask: str | None = None
+    ipv4_gateway: str | None = None
+    vlan_id: int | None = None
+    password: str | None = None
 
 
 # --- Helpers ---
@@ -148,9 +185,13 @@ def _get_ethtool_info(name: str) -> dict:
     for line in result.stdout.splitlines():
         line = line.strip()
         if line.startswith("Speed:"):
-            info["speed"] = line.split(":", 1)[1].strip()
+            val = line.split(":", 1)[1].strip()
+            if val and "Unknown" not in val:
+                info["speed"] = val
         elif line.startswith("Duplex:"):
-            info["duplex"] = line.split(":", 1)[1].strip()
+            val = line.split(":", 1)[1].strip()
+            if val and "Unknown" not in val:
+                info["duplex"] = val
     return info
 
 
@@ -216,7 +257,11 @@ def _build_iface_list() -> list[dict]:
             if ai.get("family") == "inet":
                 addrs.append(f"{ai['local']}/{ai.get('prefixlen', '')}")
         iface_type = _classify_iface(name, link, physical_set)
-        state = iface.get("operstate", "UNKNOWN")
+        state = iface.get("operstate", "UNKNOWN").lower()
+        # ZeroTier and similar tunnel interfaces report operstate UNKNOWN
+        # even when functional — treat as up if they have addresses
+        if state == "unknown" and addrs:
+            state = "up"
         mac = iface.get("address", "")
         mtu = iface.get("mtu")
         ethtool = _get_ethtool_info(name) if iface_type == "physical" else {"speed": None, "duplex": None}
@@ -224,7 +269,7 @@ def _build_iface_list() -> list[dict]:
         interfaces.append({
             "name": name,
             "type": iface_type,
-            "state": state.lower(),
+            "state": state,
             "addresses": addrs,
             "mac": mac,
             "mtu": mtu,
@@ -558,3 +603,424 @@ def get_routes():
         }
         for r in routes
     ]
+
+
+# --- Global Configuration ---
+
+def _get_network_config_value(key: str, default: str = "") -> str:
+    db = get_db()
+    try:
+        row = db.execute("SELECT value FROM network_config WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else default
+    finally:
+        db.close()
+
+
+def _set_network_config_value(key: str, value: str):
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT OR REPLACE INTO network_config (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+@router.get("/global-config")
+def get_global_config():
+    # Hostname
+    hostname_result = run([*NSENTER, "hostname", "-s"])
+    hostname = hostname_result.stdout.strip() if hostname_result.ok else ""
+
+    # Domain
+    domain_result = run([*NSENTER, "hostname", "-d"])
+    domain = domain_result.stdout.strip() if domain_result.ok else ""
+
+    # DNS servers from netplan or resolvectl
+    data = _read_netplan()
+    net = data.get("network", {})
+
+    # Collect global nameservers from netplan ethernets
+    ns1 = ""
+    ns2 = ""
+    ns3 = ""
+    search_domains = []
+    for section_key in ("ethernets", "bonds"):
+        section = net.get(section_key, {})
+        for iface_cfg in section.values():
+            ns_cfg = iface_cfg.get("nameservers", {})
+            addrs = ns_cfg.get("addresses", [])
+            for i, addr in enumerate(addrs):
+                if i == 0 and not ns1:
+                    ns1 = addr
+                elif i == 1 and not ns2:
+                    ns2 = addr
+                elif i == 2 and not ns3:
+                    ns3 = addr
+            for d in ns_cfg.get("search", []):
+                if d not in search_domains:
+                    search_domains.append(d)
+
+    # Gateways from netplan routes
+    ipv4_gw = ""
+    ipv6_gw = ""
+    for section_key in ("ethernets", "bonds"):
+        section = net.get(section_key, {})
+        for iface_cfg in section.values():
+            for route in iface_cfg.get("routes", []):
+                if route.get("to") == "default":
+                    via = route.get("via", "")
+                    if ":" in via:
+                        if not ipv6_gw:
+                            ipv6_gw = via
+                    else:
+                        if not ipv4_gw:
+                            ipv4_gw = via
+
+    # DB-backed settings
+    netbios = _get_network_config_value("netbios_ns", "false") == "true"
+    mdns = _get_network_config_value("mdns", "false") == "true"
+    ws_discovery = _get_network_config_value("ws_discovery", "false") == "true"
+    http_proxy = _get_network_config_value("http_proxy", "")
+    netwait_enabled = _get_network_config_value("netwait_enabled", "false") == "true"
+    netwait_ip_list_raw = _get_network_config_value("netwait_ip_list", "")
+    netwait_ip_list = [ip.strip() for ip in netwait_ip_list_raw.split(",") if ip.strip()] if netwait_ip_list_raw else []
+    host_name_database = _get_network_config_value("host_name_database", "")
+
+    return {
+        "hostname": hostname,
+        "domain": domain,
+        "additional_domains": search_domains,
+        "nameserver1": ns1,
+        "nameserver2": ns2,
+        "nameserver3": ns3,
+        "ipv4_gateway": ipv4_gw,
+        "ipv6_gateway": ipv6_gw,
+        "service_announcement": {
+            "netbios_ns": netbios,
+            "mdns": mdns,
+            "ws_discovery": ws_discovery,
+        },
+        "http_proxy": http_proxy,
+        "netwait_enabled": netwait_enabled,
+        "netwait_ip_list": netwait_ip_list,
+        "host_name_database": host_name_database,
+    }
+
+
+@router.put("/global-config")
+def update_global_config(body: GlobalConfig):
+    # Hostname
+    if body.hostname:
+        result = run([*NSENTER, "hostnamectl", "set-hostname", body.hostname])
+        if not result.ok:
+            raise HTTPException(status_code=500, detail=f"Failed to set hostname: {result.stderr.strip()}")
+
+    # Update netplan for DNS servers, gateways, search domains
+    data = _read_netplan()
+    net = data.setdefault("network", {"version": 2})
+    net.setdefault("version", 2)
+
+    # Find the first configured ethernet or bond to attach global DNS/gateway settings
+    target_section = None
+    target_iface = None
+    for section_key in ("ethernets", "bonds"):
+        section = net.get(section_key, {})
+        for iface_name, iface_cfg in section.items():
+            if iface_cfg.get("dhcp4") is False or iface_cfg.get("addresses"):
+                target_section = section_key
+                target_iface = iface_name
+                break
+            if target_iface is None:
+                target_section = section_key
+                target_iface = iface_name
+        if target_iface:
+            break
+
+    if target_iface:
+        cfg = net.setdefault(target_section, {}).setdefault(target_iface, {})
+
+        # DNS servers
+        nameservers = []
+        for ns in [body.nameserver1, body.nameserver2, body.nameserver3]:
+            if ns and ns.strip():
+                nameservers.append(ns.strip())
+        if nameservers:
+            cfg.setdefault("nameservers", {})["addresses"] = nameservers
+
+        # Search domains
+        if body.domain or body.additional_domains:
+            domains = []
+            if body.domain:
+                domains.append(body.domain)
+            if body.additional_domains:
+                domains.extend(body.additional_domains)
+            cfg.setdefault("nameservers", {})["search"] = domains
+
+        # Gateway
+        if body.ipv4_gateway:
+            _validate_ip(body.ipv4_gateway, "IPv4 gateway")
+            routes = cfg.get("routes", [])
+            routes = [r for r in routes if r.get("to") != "default" or ":" in r.get("via", "")]
+            routes.append({"to": "default", "via": body.ipv4_gateway})
+            cfg["routes"] = routes
+
+        if body.ipv6_gateway:
+            routes = cfg.get("routes", [])
+            routes = [r for r in routes if r.get("to") != "default" or ":" not in r.get("via", "")]
+            routes.append({"to": "default", "via": body.ipv6_gateway})
+            cfg["routes"] = routes
+
+    _write_netplan(data)
+    _apply_netplan()
+
+    # DB-backed settings
+    if body.service_announcement:
+        sa = body.service_announcement
+        if "netbios_ns" in sa:
+            _set_network_config_value("netbios_ns", "true" if sa["netbios_ns"] else "false")
+        if "mdns" in sa:
+            _set_network_config_value("mdns", "true" if sa["mdns"] else "false")
+        if "ws_discovery" in sa:
+            _set_network_config_value("ws_discovery", "true" if sa["ws_discovery"] else "false")
+
+    if body.http_proxy is not None:
+        _set_network_config_value("http_proxy", body.http_proxy)
+    _set_network_config_value("netwait_enabled", "true" if body.netwait_enabled else "false")
+    if body.netwait_ip_list is not None:
+        _set_network_config_value("netwait_ip_list", ",".join(body.netwait_ip_list))
+    if body.host_name_database is not None:
+        _set_network_config_value("host_name_database", body.host_name_database)
+
+    return {"message": "Global configuration updated"}
+
+
+# --- Static Routes CRUD ---
+
+@router.get("/static-routes")
+def list_static_routes():
+    data = _read_netplan()
+    net = data.get("network", {})
+
+    # Collect static routes from netplan (non-default routes)
+    routes = []
+    seen = set()
+    for section_key in ("ethernets", "bonds"):
+        section = net.get(section_key, {})
+        for iface_cfg in section.values():
+            for route in iface_cfg.get("routes", []):
+                dest = route.get("to", "")
+                gw = route.get("via", "")
+                if dest and dest != "default" and (dest, gw) not in seen:
+                    seen.add((dest, gw))
+                    routes.append({"destination": dest, "gateway": gw})
+
+    # Add descriptions from DB
+    db = get_db()
+    try:
+        desc_rows = db.execute("SELECT destination, gateway, description FROM static_route_descriptions").fetchall()
+        desc_map = {(r[0], r[1]): r[2] for r in desc_rows}
+    finally:
+        db.close()
+
+    for r in routes:
+        r["description"] = desc_map.get((r["destination"], r["gateway"]), "")
+
+    return routes
+
+
+@router.post("/static-routes")
+def create_static_route(body: StaticRouteCreate):
+    # Validate destination is CIDR
+    if not re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}$", body.destination):
+        raise HTTPException(status_code=400, detail=f"Invalid CIDR destination: {body.destination}")
+    _validate_ip(body.gateway, "gateway")
+
+    data = _read_netplan()
+    net = data.setdefault("network", {"version": 2})
+    net.setdefault("version", 2)
+
+    # Find first interface section to attach the route
+    target_section = None
+    target_iface = None
+    for section_key in ("ethernets", "bonds"):
+        section = net.get(section_key, {})
+        for iface_name in section:
+            target_section = section_key
+            target_iface = iface_name
+            break
+        if target_iface:
+            break
+
+    if not target_iface:
+        raise HTTPException(status_code=400, detail="No network interfaces configured in netplan")
+
+    cfg = net[target_section][target_iface]
+    routes = cfg.get("routes", [])
+
+    # Check for duplicates
+    for r in routes:
+        if r.get("to") == body.destination and r.get("via") == body.gateway:
+            raise HTTPException(status_code=409, detail="Route already exists")
+
+    routes.append({"to": body.destination, "via": body.gateway})
+    cfg["routes"] = routes
+
+    _write_netplan(data)
+    _apply_netplan()
+
+    # Store description in DB
+    if body.description:
+        db = get_db()
+        try:
+            db.execute(
+                "INSERT OR REPLACE INTO static_route_descriptions (destination, gateway, description) VALUES (?, ?, ?)",
+                (body.destination, body.gateway, body.description),
+            )
+            db.commit()
+        finally:
+            db.close()
+
+    return {"message": "Static route created"}
+
+
+@router.delete("/static-routes")
+def delete_static_route(body: StaticRouteDelete):
+    data = _read_netplan()
+    net = data.get("network", {})
+
+    found = False
+    for section_key in ("ethernets", "bonds"):
+        section = net.get(section_key, {})
+        for iface_name, iface_cfg in section.items():
+            routes = iface_cfg.get("routes", [])
+            new_routes = [r for r in routes if not (r.get("to") == body.destination and r.get("via") == body.gateway)]
+            if len(new_routes) < len(routes):
+                found = True
+                if new_routes:
+                    iface_cfg["routes"] = new_routes
+                else:
+                    iface_cfg.pop("routes", None)
+
+    if not found:
+        raise HTTPException(status_code=404, detail="Route not found")
+
+    _write_netplan(data)
+    _apply_netplan()
+
+    # Remove description from DB
+    db = get_db()
+    try:
+        db.execute(
+            "DELETE FROM static_route_descriptions WHERE destination = ? AND gateway = ?",
+            (body.destination, body.gateway),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    return {"message": "Static route deleted"}
+
+
+# --- IPMI ---
+
+@router.get("/ipmi")
+def get_ipmi():
+    # Check if ipmitool is available
+    check = run([*NSENTER, "which", "ipmitool"], timeout=5)
+    if not check.ok:
+        return {"available": False}
+
+    # Check if BMC is reachable
+    mc_info = run([*NSENTER, "ipmitool", "mc", "info"], timeout=10)
+    if not mc_info.ok:
+        return {"available": False}
+
+    # Read LAN config
+    lan_result = run([*NSENTER, "ipmitool", "lan", "print", "1"], timeout=10)
+    if not lan_result.ok:
+        return {"available": True, "dhcp": True, "ipv4_address": "", "ipv4_netmask": "", "ipv4_gateway": "", "vlan_id": None}
+
+    config = {
+        "available": True,
+        "dhcp": True,
+        "ipv4_address": "",
+        "ipv4_netmask": "",
+        "ipv4_gateway": "",
+        "vlan_id": None,
+    }
+
+    for line in lan_result.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("IP Address Source"):
+            config["dhcp"] = "DHCP" in line.split(":", 1)[1].strip()
+        elif line.startswith("IP Address") and "Source" not in line:
+            config["ipv4_address"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Subnet Mask"):
+            config["ipv4_netmask"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Default Gateway IP"):
+            config["ipv4_gateway"] = line.split(":", 1)[1].strip()
+        elif line.startswith("802.1q VLAN ID"):
+            val = line.split(":", 1)[1].strip()
+            if val and val != "Disabled":
+                try:
+                    config["vlan_id"] = int(val)
+                except ValueError:
+                    pass
+
+    return config
+
+
+@router.put("/ipmi")
+def update_ipmi(body: IPMIConfig):
+    check = run([*NSENTER, "which", "ipmitool"], timeout=5)
+    if not check.ok:
+        raise HTTPException(status_code=400, detail="ipmitool not available")
+
+    if body.dhcp:
+        result = run([*NSENTER, "ipmitool", "lan", "set", "1", "ipsrc", "dhcp"], timeout=10)
+        if not result.ok:
+            raise HTTPException(status_code=500, detail=f"Failed to set DHCP: {result.stderr.strip()}")
+    else:
+        result = run([*NSENTER, "ipmitool", "lan", "set", "1", "ipsrc", "static"], timeout=10)
+        if not result.ok:
+            raise HTTPException(status_code=500, detail=f"Failed to set static IP source: {result.stderr.strip()}")
+        if body.ipv4_address:
+            r = run([*NSENTER, "ipmitool", "lan", "set", "1", "ipaddr", body.ipv4_address], timeout=10)
+            if not r.ok:
+                raise HTTPException(status_code=500, detail=f"Failed to set IP: {r.stderr.strip()}")
+        if body.ipv4_netmask:
+            r = run([*NSENTER, "ipmitool", "lan", "set", "1", "netmask", body.ipv4_netmask], timeout=10)
+            if not r.ok:
+                raise HTTPException(status_code=500, detail=f"Failed to set netmask: {r.stderr.strip()}")
+        if body.ipv4_gateway:
+            r = run([*NSENTER, "ipmitool", "lan", "set", "1", "defgw", "ipaddr", body.ipv4_gateway], timeout=10)
+            if not r.ok:
+                raise HTTPException(status_code=500, detail=f"Failed to set gateway: {r.stderr.strip()}")
+
+    if body.vlan_id is not None:
+        r = run([*NSENTER, "ipmitool", "lan", "set", "1", "vlan", "id", str(body.vlan_id)], timeout=10)
+        if not r.ok:
+            raise HTTPException(status_code=500, detail=f"Failed to set VLAN: {r.stderr.strip()}")
+
+    if body.password:
+        r = run([*NSENTER, "ipmitool", "user", "set", "password", "2", body.password], timeout=10)
+        if not r.ok:
+            raise HTTPException(status_code=500, detail=f"Failed to set password: {r.stderr.strip()}")
+
+    return {"message": "IPMI configuration updated"}
+
+
+@router.post("/ipmi/identify")
+def ipmi_identify():
+    check = run([*NSENTER, "which", "ipmitool"], timeout=5)
+    if not check.ok:
+        raise HTTPException(status_code=400, detail="ipmitool not available")
+
+    result = run([*NSENTER, "ipmitool", "chassis", "identify", "15"], timeout=10)
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=f"Identify failed: {result.stderr.strip()}")
+
+    return {"message": "Identify light activated for 15 seconds"}

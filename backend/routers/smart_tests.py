@@ -142,31 +142,49 @@ def run_smart_test(test_id: int, username: str = Depends(get_current_user)):
     finally:
         db.close()
 
-    results = []
-    for disk in test["disks"]:
-        r = shell_run(["smartctl", "-t", test["test_type"], f"/dev/{disk}"], timeout=60)
-        results.append(f"{disk}: {r.stdout.strip() or r.stderr.strip()}")
+    if not test["disks"]:
+        raise HTTPException(status_code=400, detail="No disks configured for this test")
 
-    result_text = "\n".join(results) if results else "No disks configured"
+    # Build a shell command that runs smartctl on each disk chained with &&
+    cmds = [f"smartctl -t {test['test_type']} /dev/{disk}" for disk in test["disks"]]
+    shell_cmd = " && ".join(cmds)
 
-    db = get_db()
-    try:
-        db.execute(
-            "UPDATE smart_tests SET last_run = ?, last_result = ? WHERE id = ?",
-            (datetime.now().isoformat(), result_text[:1000], test_id),
-        )
-        db.commit()
-    finally:
-        db.close()
-
-    if "FAILED" in result_text.upper() or "error" in result_text.lower():
+    def on_complete(job_id, status, stdout, stderr, returncode):
+        result_text = stdout or stderr or f"Exit code: {returncode}"
+        db2 = get_db()
         try:
-            from backend.utils.email import send_alert
-            send_alert("smart_failures",
-                        f"SMART test issue: {test['name']}",
-                        f"Test: {test['name']}\nDisks: {', '.join(test['disks'])}\nResult: {result_text[:500]}")
-        except Exception:
-            pass
+            db2.execute(
+                "UPDATE smart_tests SET last_run = ?, last_result = ? WHERE id = ?",
+                (datetime.now().isoformat(), result_text[:1000], test_id),
+            )
+            db2.commit()
+        finally:
+            db2.close()
+        if "FAILED" in result_text.upper() or "error" in result_text.lower():
+            try:
+                from backend.utils.email import send_alert
+                send_alert("smart_failures",
+                           f"SMART test issue: {test['name']}",
+                           f"Test: {test['name']}\nDisks: {', '.join(test['disks'])}\nResult: {result_text[:500]}")
+            except Exception:
+                pass
 
-    logger.info(f"User '{username}' ran SMART test id={test_id}")
-    return {"message": "SMART test executed", "result": result_text[:1000]}
+    from backend.utils.jobs import JobManager
+    mgr = JobManager()
+    try:
+        job_id = mgr.submit(
+            job_type="smart_test",
+            description=f"SMART {test['test_type']} test: {test['name']}",
+            resource=f"smart_test:{test_id}",
+            started_by=username,
+            shell_cmd=shell_cmd,
+            timeout=60,
+            on_complete=on_complete,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    logger.info(f"User '{username}' ran SMART test id={test_id} (job {job_id})")
+    return {"job_id": job_id, "message": "SMART test started"}

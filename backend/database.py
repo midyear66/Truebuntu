@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "/data/nas.db")
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -209,6 +209,56 @@ def init_db():
             db.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (4,),
+            )
+            db.commit()
+
+        if current_version < 5:
+            logger.info("Applying schema v5")
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_type TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    description TEXT NOT NULL DEFAULT '',
+                    resource TEXT NOT NULL DEFAULT '',
+                    started_by TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    started_at TEXT,
+                    finished_at TEXT,
+                    stdout TEXT NOT NULL DEFAULT '',
+                    stderr TEXT NOT NULL DEFAULT '',
+                    returncode INTEGER,
+                    progress TEXT,
+                    error TEXT NOT NULL DEFAULT '',
+                    pid INTEGER
+                );
+                CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+                CREATE INDEX IF NOT EXISTS idx_jobs_resource ON jobs(resource);
+            """)
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (5,),
+            )
+            db.commit()
+
+        if current_version < 6:
+            logger.info("Applying schema v6")
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS network_config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL DEFAULT ''
+                );
+
+                CREATE TABLE IF NOT EXISTS static_route_descriptions (
+                    destination TEXT NOT NULL,
+                    gateway TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (destination, gateway)
+                );
+            """)
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (6,),
             )
             db.commit()
 

@@ -1,5 +1,4 @@
 import logging
-import subprocess
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -123,38 +122,42 @@ def run_cron_job(job_id: int, username: str = Depends(get_current_user)):
     finally:
         db.close()
 
-    # Use subprocess directly to allow shell metacharacters in commands
-    success = False
-    try:
-        proc = subprocess.run(
-            ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "sh", "-c", job["command"]],
-            capture_output=True, text=True, timeout=300,
-        )
-        result_text = proc.stdout or proc.stderr or f"Exit code: {proc.returncode}"
-        success = proc.returncode == 0
-    except subprocess.TimeoutExpired:
-        result_text = "Command timed out after 300s"
-    except Exception as e:
-        result_text = str(e)
-
-    db = get_db()
-    try:
-        db.execute(
-            "UPDATE cron_jobs SET last_run = ?, last_result = ? WHERE id = ?",
-            (datetime.now().isoformat(), result_text[:1000], job_id),
-        )
-        db.commit()
-    finally:
-        db.close()
-
-    if not success:
+    def on_complete(bg_job_id, status, stdout, stderr, returncode):
+        result_text = stdout or stderr or f"Exit code: {returncode}"
+        db2 = get_db()
         try:
-            from backend.utils.email import send_alert
-            send_alert("cron_failures",
-                        f"Cron job failed: {job['name']}",
-                        f"Job: {job['name']}\nCommand: {job['command']}\nResult: {result_text[:500]}")
-        except Exception:
-            pass
+            db2.execute(
+                "UPDATE cron_jobs SET last_run = ?, last_result = ? WHERE id = ?",
+                (datetime.now().isoformat(), result_text[:1000], job_id),
+            )
+            db2.commit()
+        finally:
+            db2.close()
+        if status == "failed":
+            try:
+                from backend.utils.email import send_alert
+                send_alert("cron_failures",
+                           f"Cron job failed: {job['name']}",
+                           f"Job: {job['name']}\nCommand: {job['command']}\nResult: {result_text[:500]}")
+            except Exception:
+                pass
 
-    logger.info(f"User '{username}' ran cron job id={job_id}")
-    return {"message": "Cron job executed", "result": result_text[:1000]}
+    from backend.utils.jobs import JobManager
+    mgr = JobManager()
+    try:
+        bg_job_id = mgr.submit(
+            job_type="cron_job",
+            description=f"Cron job: {job['name']}",
+            resource=f"cron_job:{job_id}",
+            started_by=username,
+            shell_cmd=job["command"],
+            timeout=300,
+            on_complete=on_complete,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    logger.info(f"User '{username}' ran cron job id={job_id} (job {bg_job_id})")
+    return {"job_id": bg_job_id, "message": "Cron job started"}

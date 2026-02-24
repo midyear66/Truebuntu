@@ -12,9 +12,16 @@ const NAV_ITEMS = [
     { path: '/settings', label: 'Settings' },
     { path: '/enclosures', label: 'Enclosures' },
     { path: '/updates', label: 'Updates' },
-    { path: '/network', label: 'Network' },
     { path: '/logs', label: 'System logs' },
     { path: '/alerts', label: 'Email alerts' },
+    { path: '/jobs', label: 'Background jobs' },
+  ]},
+  { label: 'Network', icon: '⊜', children: [
+    { path: '/network', label: 'Network summary' },
+    { path: '/network/global', label: 'Global configuration' },
+    { path: '/network/interfaces', label: 'Interfaces' },
+    { path: '/network/static-routes', label: 'Static routes' },
+    { path: '/network/ipmi', label: 'IPMI' },
   ]},
   { label: 'Tasks', icon: '⊘', children: [
     { path: '/cron-jobs', label: 'Cron jobs' },

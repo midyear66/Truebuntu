@@ -177,27 +177,42 @@ def run_rsync_task(task_id: int, username: str = Depends(get_current_user)):
     else:
         args.extend([task["source"], task["destination"]])
 
-    result = shell_run(args, timeout=3600)
-    result_text = result.stdout or result.stderr or f"Exit code: {result.returncode}"
-
-    db = get_db()
-    try:
-        db.execute(
-            "UPDATE rsync_tasks SET last_run = ?, last_result = ? WHERE id = ?",
-            (datetime.now().isoformat(), result_text[:1000], task_id),
-        )
-        db.commit()
-    finally:
-        db.close()
-
-    if not result.ok:
+    def on_complete(job_id, status, stdout, stderr, returncode):
+        result_text = stdout or stderr or f"Exit code: {returncode}"
+        db2 = get_db()
         try:
-            from backend.utils.email import send_alert
-            send_alert("rsync_failures",
-                        f"Rsync task failed: {task['name']}",
-                        f"Task: {task['name']}\nSource: {task['source']}\nDest: {task['destination']}\nResult: {result_text[:500]}")
-        except Exception:
-            pass
+            db2.execute(
+                "UPDATE rsync_tasks SET last_run = ?, last_result = ? WHERE id = ?",
+                (datetime.now().isoformat(), result_text[:1000], task_id),
+            )
+            db2.commit()
+        finally:
+            db2.close()
+        if status == "failed":
+            try:
+                from backend.utils.email import send_alert
+                send_alert("rsync_failures",
+                           f"Rsync task failed: {task['name']}",
+                           f"Task: {task['name']}\nSource: {task['source']}\nDest: {task['destination']}\nResult: {result_text[:500]}")
+            except Exception:
+                pass
 
-    logger.info(f"User '{username}' ran rsync task id={task_id}")
-    return {"message": "Rsync task executed", "result": result_text[:1000]}
+    from backend.utils.jobs import JobManager
+    mgr = JobManager()
+    try:
+        job_id = mgr.submit(
+            job_type="rsync",
+            description=f"Rsync: {task['name']}",
+            resource=f"rsync:{task_id}",
+            started_by=username,
+            cmd=args,
+            timeout=3600,
+            on_complete=on_complete,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    logger.info(f"User '{username}' ran rsync task id={task_id} (job {job_id})")
+    return {"job_id": job_id, "message": "Rsync task started"}

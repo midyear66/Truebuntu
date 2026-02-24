@@ -190,12 +190,24 @@ def start_scrub(pool: str, username: str = Depends(get_current_user)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
 
-    result = run(["zpool", "scrub", pool])
-    if not result.ok:
-        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    from backend.utils.jobs import JobManager
+    mgr = JobManager()
+    try:
+        job_id = mgr.submit(
+            job_type="scrub",
+            description=f"Scrub pool '{pool}'",
+            resource=f"scrub:{pool}",
+            started_by=username,
+            cmd=["zpool", "scrub", pool],
+            timeout=60,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
-    logger.info(f"User '{username}' started scrub on pool '{pool}'")
-    return {"message": f"Scrub started on '{pool}'"}
+    logger.info(f"User '{username}' started scrub on pool '{pool}' (job {job_id})")
+    return {"job_id": job_id, "message": f"Scrub started on '{pool}'"}
 
 
 @router.post("/{pool}/scrub/stop")

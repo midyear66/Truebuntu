@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
 import ConfirmDialog from '../components/ConfirmDialog'
+import useJobPoller from '../useJobPoller'
 
 export default function Snapshots() {
   const [snapshots, setSnapshots] = useState([])
@@ -11,6 +12,7 @@ export default function Snapshots() {
   const [recursive, setRecursive] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [error, setError] = useState('')
+  const { submitJob } = useJobPoller()
 
   const load = async () => {
     try {
@@ -48,11 +50,15 @@ export default function Snapshots() {
 
   const rollbackSnapshot = async (name) => {
     try {
-      await api.post(`/snapshots/${name}/rollback`)
+      await submitJob(() => api.post(`/snapshots/${name}/rollback`))
       setConfirmAction(null)
       load()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Rollback failed')
+      if (err.response?.status === 409) {
+        setError('A rollback is already in progress for this dataset')
+      } else {
+        setError(err.response?.data?.detail || 'Rollback failed')
+      }
     }
   }
 

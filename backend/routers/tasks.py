@@ -136,45 +136,64 @@ def run_task(task_id: int, username: str = Depends(get_current_user)):
     finally:
         db.close()
 
-    from backend.utils.shell import run as shell_run
+    from datetime import datetime
+    from backend.utils.jobs import JobManager
 
     task_type = task["type"]
     config = task["config"]
-    result_text = ""
+    cmd = None
+    timeout = 60
 
     if task_type == "scrub":
         pool = config.get("pool", "")
-        if pool:
-            r = shell_run(["zpool", "scrub", pool])
-            result_text = r.stdout or r.stderr
+        if not pool:
+            raise HTTPException(status_code=400, detail="No pool configured")
+        cmd = ["zpool", "scrub", pool]
     elif task_type == "smart_test":
         disk = config.get("disk", "")
         test_type = config.get("test_type", "short")
-        if disk:
-            r = shell_run(["smartctl", "-t", test_type, f"/dev/{disk}"])
-            result_text = r.stdout or r.stderr
+        if not disk:
+            raise HTTPException(status_code=400, detail="No disk configured")
+        cmd = ["smartctl", "-t", test_type, f"/dev/{disk}"]
     elif task_type == "rclone_sync":
         source = config.get("source", "")
         dest = config.get("dest", "")
-        if source and dest:
-            r = shell_run(["rclone", "sync", source, dest, "--progress"], timeout=3600)
-            result_text = r.stdout or r.stderr
+        if not source or not dest:
+            raise HTTPException(status_code=400, detail="No source/dest configured")
+        cmd = ["rclone", "sync", source, dest, "--progress"]
+        timeout = 3600
     elif task_type == "custom":
-        # Custom tasks not implemented for security
-        result_text = "Custom task execution not supported"
+        raise HTTPException(status_code=400, detail="Custom task execution not supported")
     else:
-        result_text = f"Unknown task type: {task_type}"
+        raise HTTPException(status_code=400, detail=f"Unknown task type: {task_type}")
 
-    from datetime import datetime
-    db = get_db()
+    def on_complete(job_id, status, stdout, stderr, returncode):
+        result_text = stdout or stderr or f"Exit code: {returncode}"
+        db2 = get_db()
+        try:
+            db2.execute(
+                "UPDATE tasks SET last_run = ?, last_result = ? WHERE id = ?",
+                (datetime.now().isoformat(), result_text[:1000], task_id),
+            )
+            db2.commit()
+        finally:
+            db2.close()
+
+    mgr = JobManager()
     try:
-        db.execute(
-            "UPDATE tasks SET last_run = ?, last_result = ? WHERE id = ?",
-            (datetime.now().isoformat(), result_text[:1000], task_id),
+        job_id = mgr.submit(
+            job_type=f"task:{task_type}",
+            description=f"Task: {task['name']} ({task_type})",
+            resource=f"task:{task_id}",
+            started_by=username,
+            cmd=cmd,
+            timeout=timeout,
+            on_complete=on_complete,
         )
-        db.commit()
-    finally:
-        db.close()
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
-    logger.info(f"User '{username}' ran task id={task_id} ({task_type})")
-    return {"message": f"Task executed", "result": result_text[:1000]}
+    logger.info(f"User '{username}' ran task id={task_id} ({task_type}) (job {job_id})")
+    return {"job_id": job_id, "message": "Task started"}

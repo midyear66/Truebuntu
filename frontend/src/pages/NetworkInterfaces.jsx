@@ -19,18 +19,16 @@ function StateBadge({ state }) {
   )
 }
 
-export default function Network() {
+export default function NetworkInterfaces() {
   const [tab, setTab] = useState('interfaces')
   const tabs = [
     { key: 'interfaces', label: 'Interfaces' },
     { key: 'bonds', label: 'Bonds' },
-    { key: 'dns', label: 'DNS' },
-    { key: 'routes', label: 'Routes' },
   ]
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Network</h2>
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Interfaces</h2>
       <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
         {tabs.map(t => (
           <button
@@ -48,8 +46,6 @@ export default function Network() {
       </div>
       {tab === 'interfaces' && <InterfacesTab />}
       {tab === 'bonds' && <BondsTab />}
-      {tab === 'dns' && <DNSTab />}
-      {tab === 'routes' && <RoutesTab />}
     </div>
   )
 }
@@ -689,126 +685,6 @@ function BondsTab() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-
-function DNSTab() {
-  const [dns, setDns] = useState({ servers: [], search: [] })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await api.get('/network/dns')
-        setDns(res.data)
-      } catch (err) {
-        setError(err.response?.data?.detail || 'Failed to load DNS info')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
-
-  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
-
-  return (
-    <div>
-      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase">DNS Servers</h3>
-          </div>
-          <div className="p-4">
-            {dns.servers.length > 0 ? (
-              <ul className="space-y-1">
-                {dns.servers.map((s, i) => (
-                  <li key={i} className="font-mono text-sm">{s}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-400 dark:text-gray-500">No DNS servers found</p>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase">Search Domains</h3>
-          </div>
-          <div className="p-4">
-            {dns.search.length > 0 ? (
-              <ul className="space-y-1">
-                {dns.search.map((d, i) => (
-                  <li key={i} className="font-mono text-sm">{d}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-400 dark:text-gray-500">No search domains found</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-
-function RoutesTab() {
-  const [routes, setRoutes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await api.get('/network/routes')
-        setRoutes(res.data)
-      } catch (err) {
-        setError(err.response?.data?.detail || 'Failed to load routes')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
-
-  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
-
-  return (
-    <div>
-      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Destination</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Gateway</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Interface</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Metric</th>
-            </tr>
-          </thead>
-          <tbody>
-            {routes.map((r, i) => (
-              <tr key={i} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td className="px-4 py-2 font-mono text-xs">{r.destination || '-'}</td>
-                <td className="px-4 py-2 font-mono text-xs">{r.gateway || '-'}</td>
-                <td className="px-4 py-2">{r.interface || '-'}</td>
-                <td className="px-4 py-2">{r.metric || '-'}</td>
-              </tr>
-            ))}
-            {routes.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">No routes found</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   )
 }

@@ -24,10 +24,15 @@ import Disks from './pages/Disks'
 import Settings from './pages/Settings'
 import Enclosures from './pages/Enclosures'
 import Updates from './pages/Updates'
-import Network from './pages/Network'
+import NetworkSummary from './pages/NetworkSummary'
+import GlobalConfig from './pages/GlobalConfig'
+import NetworkInterfaces from './pages/NetworkInterfaces'
+import StaticRoutes from './pages/StaticRoutes'
+import IPMI from './pages/IPMI'
 import Replication from './pages/Replication'
 import Logs from './pages/Logs'
 import Alerts from './pages/Alerts'
+import Jobs from './pages/Jobs'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -104,10 +109,15 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/enclosures" element={<Enclosures />} />
           <Route path="/updates" element={<Updates />} />
-          <Route path="/network" element={<Network />} />
+          <Route path="/network" element={<NetworkSummary />} />
+          <Route path="/network/global" element={<GlobalConfig />} />
+          <Route path="/network/interfaces" element={<NetworkInterfaces />} />
+          <Route path="/network/static-routes" element={<StaticRoutes />} />
+          <Route path="/network/ipmi" element={<IPMI />} />
           <Route path="/replication" element={<Replication />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/jobs" element={<Jobs />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>

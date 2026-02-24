@@ -15,7 +15,7 @@ from backend.routers import (
     users, services, tasks, disks, rclone, dashboard, migrate, config,
     system, enclosure, updates, totp,
     network, cron_jobs, init_shutdown, rsync_tasks, smart_tests, resilver,
-    replication, logs, alerts,
+    replication, logs, alerts, jobs,
 )
 
 logging.basicConfig(
@@ -90,11 +90,14 @@ app.include_router(network.router, prefix="/api")
 app.include_router(replication.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
+app.include_router(jobs.router, prefix="/api")
 
 
 @app.on_event("startup")
 def startup():
     init_db()
+    from backend.utils.jobs import JobManager
+    JobManager().cleanup_stale()
     logger.info("Truebuntu started")
 
 

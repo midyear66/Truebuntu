@@ -91,12 +91,25 @@ def rollback_snapshot(snapshot: str, username: str = Depends(get_current_user)):
     if not VALID_NAME.match(snapshot) or "@" not in snapshot:
         raise HTTPException(status_code=400, detail="Invalid snapshot name")
 
-    result = run(["zfs", "rollback", "-r", snapshot], timeout=120)
-    if not result.ok:
-        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    dataset = snapshot.split("@")[0]
+    from backend.utils.jobs import JobManager
+    mgr = JobManager()
+    try:
+        job_id = mgr.submit(
+            job_type="rollback",
+            description=f"Rollback to '{snapshot}'",
+            resource=f"rollback:{dataset}",
+            started_by=username,
+            cmd=["zfs", "rollback", "-r", snapshot],
+            timeout=120,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
-    logger.info(f"User '{username}' rolled back to snapshot '{snapshot}'")
-    return {"message": f"Rolled back to '{snapshot}'"}
+    logger.info(f"User '{username}' started rollback to snapshot '{snapshot}' (job {job_id})")
+    return {"job_id": job_id, "message": f"Rollback to '{snapshot}' started"}
 
 
 @router.post("/{snapshot:path}/clone")

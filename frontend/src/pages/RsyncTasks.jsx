@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import useJobPoller from '../useJobPoller'
 
 export default function RsyncTasks() {
   const [tasks, setTasks] = useState([])
@@ -12,8 +13,8 @@ export default function RsyncTasks() {
     schedule: '0 0 * * *', extra_args: '', recursive: true, archive: true,
     compress: true, delete_dest: false, enabled: true,
   })
-  const [running, setRunning] = useState(null)
   const [error, setError] = useState('')
+  const { submitJob, cancelJob, getJobForResource } = useJobPoller()
 
   const load = async () => {
     try {
@@ -65,15 +66,14 @@ export default function RsyncTasks() {
   }
 
   const runTask = async (id) => {
-    setRunning(id)
     try {
-      const res = await api.post(`/rsync-tasks/${id}/run`)
-      alert(res.data.result || 'Task executed')
-      load()
+      await submitJob(() => api.post(`/rsync-tasks/${id}/run`))
     } catch (err) {
-      setError(err.response?.data?.detail || 'Run failed')
-    } finally {
-      setRunning(null)
+      if (err.response?.status === 409) {
+        setError('This rsync task is already running')
+      } else {
+        setError(err.response?.data?.detail || 'Run failed')
+      }
     }
   }
 
@@ -164,9 +164,13 @@ export default function RsyncTasks() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
-                  <button onClick={() => runTask(t.id)} disabled={running === t.id} className="text-blue-600 hover:text-blue-800 text-xs">
-                    {running === t.id ? 'Running...' : 'Run'}
-                  </button>
+                  {getJobForResource(`rsync:${t.id}`) ? (
+                    <button onClick={() => cancelJob(getJobForResource(`rsync:${t.id}`).id)} className="text-red-600 hover:text-red-800 text-xs">
+                      Running... Cancel
+                    </button>
+                  ) : (
+                    <button onClick={() => runTask(t.id)} className="text-blue-600 hover:text-blue-800 text-xs">Run</button>
+                  )}
                   <button onClick={() => startEdit(t)} className="text-gray-600 dark:text-gray-300 hover:text-gray-800 text-xs">Edit</button>
                   <button onClick={() => deleteTask(t.id)} className="text-red-600 hover:text-red-800 text-xs">Delete</button>
                 </td>
