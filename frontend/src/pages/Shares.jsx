@@ -265,7 +265,7 @@ export default function Shares() {
               </tr>
             )}
             {shares.map(s => (
-              <tr key={s.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750">
+              <tr key={s.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{s.name}</td>
                 <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{s.path}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>

@@ -288,7 +288,7 @@ export default function NFS() {
               </tr>
             )}
             {exports.map((exp, i) => (
-              <tr key={i} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750">
+              <tr key={i} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-4 py-3 font-mono text-xs text-gray-900 dark:text-gray-100">{exp.path}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1.5">
