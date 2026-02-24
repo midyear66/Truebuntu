@@ -4,11 +4,11 @@ import api from '../api'
 import { useTheme } from '../ThemeContext'
 
 const NAV_ITEMS = [
-  { path: '/dashboard', label: 'Dashboard', icon: '⊞' },
-  { label: 'Accounts', icon: '⊕', children: [
+  { path: '/dashboard', label: 'Dashboard', icon: '\u{1F4CA}' },
+  { label: 'Accounts', icon: '\u{1F465}', children: [
     { path: '/users', label: 'Users' },
   ]},
-  { label: 'System', icon: '⊜', children: [
+  { label: 'System', icon: '\u{2699}\uFE0F', children: [
     { path: '/settings', label: 'Settings' },
     { path: '/enclosures', label: 'Enclosures' },
     { path: '/updates', label: 'Updates' },
@@ -16,14 +16,14 @@ const NAV_ITEMS = [
     { path: '/alerts', label: 'Email alerts' },
     { path: '/jobs', label: 'Background jobs' },
   ]},
-  { label: 'Network', icon: '⊜', children: [
+  { label: 'Network', icon: '\u{1F310}', children: [
     { path: '/network', label: 'Network summary' },
     { path: '/network/global', label: 'Global configuration' },
     { path: '/network/interfaces', label: 'Interfaces' },
     { path: '/network/static-routes', label: 'Static routes' },
     { path: '/network/ipmi', label: 'IPMI' },
   ]},
-  { label: 'Tasks', icon: '⊘', children: [
+  { label: 'Tasks', icon: '\u{1F552}', children: [
     { path: '/cron-jobs', label: 'Cron jobs' },
     { path: '/init-shutdown', label: 'Init/shutdown scripts' },
     { path: '/rsync-tasks', label: 'Rsync tasks' },
@@ -32,18 +32,18 @@ const NAV_ITEMS = [
     { path: '/resilver', label: 'Resilver priority' },
     { path: '/cloud-sync', label: 'Cloud sync tasks' },
   ]},
-  { label: 'Storage', icon: '⊡', children: [
+  { label: 'Storage', icon: '\u{1F4BE}', children: [
     { path: '/pools', label: 'Pools' },
     { path: '/datasets', label: 'Datasets' },
     { path: '/snapshots', label: 'Snapshots' },
     { path: '/disks', label: 'Disks' },
     { path: '/replication', label: 'Replication' },
   ]},
-  { label: 'Sharing', icon: '⊞', children: [
+  { label: 'Sharing', icon: '\u{1F4C1}', children: [
     { path: '/shares', label: 'SMB shares' },
     { path: '/nfs', label: 'NFS exports' },
   ]},
-  { path: '/services', label: 'Services', icon: '⊛' },
+  { path: '/services', label: 'Services', icon: '\u{1F527}' },
 ]
 
 function findGroupForPath(pathname) {
@@ -133,9 +133,9 @@ export default function Layout({ children, user }) {
 
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-      <aside className="w-56 bg-gray-900 dark:bg-gray-950 text-gray-300 flex flex-col">
-        <div className="p-4 border-b border-gray-700">
-          <h1 className="text-lg font-bold text-white">Truebuntu</h1>
+      <aside className="w-56 bg-gray-200 dark:bg-gray-950 text-gray-600 dark:text-gray-300 flex flex-col border-r border-gray-300 dark:border-gray-800">
+        <div className="p-4 border-b border-gray-300 dark:border-gray-700">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Truebuntu</h1>
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
           {NAV_ITEMS.map(item =>
@@ -143,8 +143,8 @@ export default function Layout({ children, user }) {
               <div key={item.label}>
                 <button
                   onClick={() => toggleGroup(item.label)}
-                  className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-800 hover:text-white transition-colors ${
-                    item.children.some(c => c.path === location.pathname) ? 'text-white' : ''
+                  className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-300 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white transition-colors ${
+                    item.children.some(c => c.path === location.pathname) ? 'text-gray-900 dark:text-white' : ''
                   }`}
                 >
                   <span className="flex items-center">
@@ -159,8 +159,8 @@ export default function Layout({ children, user }) {
                       <Link
                         key={child.path}
                         to={child.path}
-                        className={`flex items-center pl-10 pr-4 py-2 text-sm hover:bg-gray-800 hover:text-white transition-colors ${
-                          location.pathname === child.path ? 'bg-gray-800 text-white border-r-2 border-blue-500' : ''
+                        className={`flex items-center pl-10 pr-4 py-2 text-sm hover:bg-gray-300 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white transition-colors ${
+                          location.pathname === child.path ? 'bg-gray-300 text-gray-900 border-r-2 border-blue-500 dark:bg-gray-800 dark:text-white' : ''
                         }`}
                       >
                         {child.label}
@@ -173,8 +173,8 @@ export default function Layout({ children, user }) {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-4 py-2 text-sm hover:bg-gray-800 hover:text-white transition-colors ${
-                  location.pathname === item.path ? 'bg-gray-800 text-white border-r-2 border-blue-500' : ''
+                className={`flex items-center px-4 py-2 text-sm hover:bg-gray-300 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white transition-colors ${
+                  location.pathname === item.path ? 'bg-gray-300 text-gray-900 border-r-2 border-blue-500 dark:bg-gray-800 dark:text-white' : ''
                 }`}
               >
                 <span className="mr-3 text-base">{item.icon}</span>
@@ -183,7 +183,7 @@ export default function Layout({ children, user }) {
             )
           )}
         </nav>
-        <div className="p-4 border-t border-gray-700 text-xs text-gray-500">
+        <div className="p-4 border-t border-gray-300 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500">
           v0.1.0
         </div>
       </aside>
