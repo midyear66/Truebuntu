@@ -215,7 +215,7 @@ def parse_vdev_tree(status_output: str) -> list[dict]:
 
 
 def parse_zfs_list(dataset: str | None = None) -> list[dict]:
-    cmd = ["zfs", "list", "-H", "-o", "name,used,avail,refer,mountpoint"]
+    cmd = ["zfs", "list", "-H", "-o", "name,used,avail,refer,mountpoint,compression,quota"]
     if dataset:
         cmd.extend(["-r", dataset])
     result = run(cmd)
@@ -225,13 +225,18 @@ def parse_zfs_list(dataset: str | None = None) -> list[dict]:
     for line in result.stdout.strip().splitlines():
         fields = line.split("\t")
         if len(fields) >= 5:
-            datasets.append({
+            entry = {
                 "name": fields[0],
                 "used": fields[1],
                 "available": fields[2],
                 "refer": fields[3],
                 "mountpoint": fields[4],
-            })
+            }
+            if len(fields) >= 6:
+                entry["compression"] = fields[5]
+            if len(fields) >= 7:
+                entry["quota"] = fields[6]
+            datasets.append(entry)
     return datasets
 
 

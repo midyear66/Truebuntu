@@ -28,7 +28,7 @@ EDITABLE_PROPERTIES = {
     "compression", "atime", "relatime", "dedup",
     "recordsize", "mountpoint", "readonly", "exec",
     "setuid", "acltype", "aclmode", "xattr",
-    "snapdir", "sync", "logbias",
+    "snapdir", "sync", "logbias", "copies",
 }
 
 
@@ -47,7 +47,7 @@ def dataset_properties(dataset: str):
         "quota", "refquota", "reservation", "refreservation",
         "dedup", "recordsize", "readonly", "exec", "setuid",
         "acltype", "aclmode", "xattr", "snapdir", "sync",
-        "logbias", "creation", "type",
+        "logbias", "copies", "creation", "type",
     ]
     result = parse_zfs_get(dataset, props)
     if not result:
