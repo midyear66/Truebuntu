@@ -13,6 +13,7 @@ MANAGED_SERVICES = {
     "smbd", "nmbd", "nfs-kernel-server",
     "ssh", "zfs-zed", "docker",
     "zabbix-agent2", "chrony", "smartmontools",
+    "vsftpd", "ddclient", "nut-monitor", "openvpn", "snmpd",
 }
 
 PROTECTED_SERVICES = {"ssh"}

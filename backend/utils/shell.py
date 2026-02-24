@@ -47,6 +47,12 @@ ALLOWED_COMMANDS = {
     "wipefs",
     "sgdisk",
     "blockdev",
+    "which",
+    "sed",
+    "cp",
+    "mkdir",
+    "openvpn",
+    "upsc",
 }
 
 # Note: Cron jobs and init/shutdown scripts may contain shell metacharacters

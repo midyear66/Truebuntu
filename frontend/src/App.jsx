@@ -33,6 +33,11 @@ import Replication from './pages/Replication'
 import Logs from './pages/Logs'
 import Alerts from './pages/Alerts'
 import Jobs from './pages/Jobs'
+import DynamicDNS from './pages/DynamicDNS'
+import FTPConfig from './pages/FTPConfig'
+import UPSConfig from './pages/UPSConfig'
+import OpenVPNConfig from './pages/OpenVPNConfig'
+import SNMPConfig from './pages/SNMPConfig'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -105,6 +110,11 @@ function App() {
           <Route path="/resilver" element={<ResilverPriority />} />
           <Route path="/users" element={<Users isAdmin={isAdmin} currentUser={user} />} />
           <Route path="/services" element={<Services />} />
+          <Route path="/services/ddns" element={<DynamicDNS />} />
+          <Route path="/services/ftp" element={<FTPConfig />} />
+          <Route path="/services/ups" element={<UPSConfig />} />
+          <Route path="/services/openvpn" element={<OpenVPNConfig />} />
+          <Route path="/services/snmp" element={<SNMPConfig />} />
           <Route path="/disks" element={<Disks />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/enclosures" element={<Enclosures />} />

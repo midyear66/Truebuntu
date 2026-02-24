@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../api'
 import StatusBadge from '../components/StatusBadge'
 
+const CONFIG_ROUTES = {
+  ddclient: '/services/ddns',
+  vsftpd: '/services/ftp',
+  'nut-monitor': '/services/ups',
+  openvpn: '/services/openvpn',
+  snmpd: '/services/snmp',
+}
+
 export default function Services() {
+  const navigate = useNavigate()
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(null)
@@ -62,6 +72,11 @@ export default function Services() {
                 <td className="px-4 py-3"><StatusBadge status={svc.active} /></td>
                 <td className="px-4 py-3"><StatusBadge status={svc.enabled} /></td>
                 <td className="px-4 py-3 text-right space-x-1">
+                  {CONFIG_ROUTES[svc.name] && (
+                    <button onClick={() => navigate(CONFIG_ROUTES[svc.name])} className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-400 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900/40">
+                      Configure
+                    </button>
+                  )}
                   {svc.active === 'active' ? (
                     <>
                       <button onClick={() => performAction(svc.name, 'restart')} disabled={!!acting} className="px-2 py-1 text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/40 disabled:opacity-50">

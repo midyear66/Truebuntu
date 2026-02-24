@@ -16,6 +16,7 @@ from backend.routers import (
     system, enclosure, updates, totp,
     network, cron_jobs, init_shutdown, rsync_tasks, smart_tests, resilver,
     replication, logs, alerts, jobs,
+    ddns, ftp, ups, openvpn, snmp,
 )
 
 logging.basicConfig(
@@ -91,6 +92,11 @@ app.include_router(replication.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api")
+app.include_router(ddns.router, prefix="/api")
+app.include_router(ftp.router, prefix="/api")
+app.include_router(ups.router, prefix="/api")
+app.include_router(openvpn.router, prefix="/api")
+app.include_router(snmp.router, prefix="/api")
 
 
 @app.on_event("startup")
