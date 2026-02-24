@@ -97,18 +97,15 @@ The install script enforces **x86_64** architecture and **8 GB minimum RAM**.
 | Network     | 1 Gb Ethernet                     |
 | UPS         | Recommended (NUT supported)       |
 
-### Reference: TrueNAS Mini
+### Target Hardware: TrueNAS Mini
 
-This project was built and tested on TrueNAS Mini hardware running Ubuntu:
+This project targets the TrueNAS Mini running Ubuntu:
 
 | Model         | CPU                        | RAM         | Drive Bays |
 |---------------|----------------------------|-------------|------------|
 | Mini           | Intel Atom C2558 (4-core) | 8 GB ECC    | 5 hot-swap |
-| Mini X+        | Intel Atom C3558 (4-core) | 8 GB ECC    | 5 hot-swap |
-| Mini XL+       | Intel Atom C3558 (4-core) | 16 GB ECC   | 7+1 hot-swap |
-| Mini R         | Intel Xeon D (8-core)     | 32 GB ECC   | 12 hot-swap |
 
-These low-power Atom/Xeon-D systems are ideal targets -- install Ubuntu Server, import your existing ZFS pools, and run Truebuntu.
+Other TrueNAS Mini variants (X+, XL+, R) and similar low-power x86_64 NAS hardware should also work -- install Ubuntu Server, import your existing ZFS pools, and run Truebuntu.
 
 ### Notes
 
