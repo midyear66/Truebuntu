@@ -57,7 +57,74 @@ def parse_zpool_status(pool: str) -> dict:
     # Add structured vdev tree
     info["vdevs"] = parse_vdev_tree(output)
 
+    # Add structured scan progress (None when no operation is active)
+    info["scan_progress"] = parse_scan_progress(info["scan"])
+
     return info
+
+
+def parse_scan_progress(scan: str) -> dict | None:
+    """Parse an active scrub/resilver scan line into structured progress data.
+
+    Returns None when no operation is currently running.
+    """
+    if not scan:
+        return None
+
+    # Determine operation type
+    scan_lower = scan.lower()
+    if "scrub in progress" in scan_lower:
+        operation = "scrub"
+    elif "resilver in progress" in scan_lower:
+        operation = "resilver"
+    else:
+        return None
+
+    result = {
+        "operation": operation,
+        "percent": 0.0,
+        "eta": "",
+        "speed": "",
+        "total": "",
+        "scanned": "",
+        "repaired": "",
+        "raw": scan,
+    }
+
+    # Percentage: "12.34% done" or "done: 12.34%"
+    pct_match = re.search(r"(\d+\.\d+)%\s*done", scan)
+    if pct_match:
+        result["percent"] = float(pct_match.group(1))
+
+    # ETA: various formats like "0 days 01:23:45", "01:23:45", "no estimated"
+    eta_match = re.search(r"(\d+\s*days?\s+\d+:\d+:\d+|\d+:\d+:\d+)\s*(to go|remaining)", scan)
+    if eta_match:
+        result["eta"] = eta_match.group(1).strip()
+    elif "no estimated" in scan_lower:
+        result["eta"] = "estimating..."
+
+    # Speed: e.g. "123M/s", "1.23G/s"
+    speed_match = re.search(r"(\d+[\.\d]*\s*[KMGTP])/s", scan)
+    if speed_match:
+        result["speed"] = speed_match.group(1).strip() + "/s"
+
+    # Total scanned / issued: "scanned 100G out of 200G" or "scanned out of 500G"
+    total_match = re.search(r"(?:out of|issued)\s+([\d.]+\s*[KMGTP])", scan)
+    if total_match:
+        result["total"] = total_match.group(1).strip()
+
+    scanned_match = re.search(r"scanned\s+([\d.]+\s*[KMGTP])", scan)
+    if scanned_match:
+        result["scanned"] = scanned_match.group(1).strip()
+
+    # Repaired: "repaired 1.5G" or "repaired 0B"
+    repaired_match = re.search(r"repaired\s+([\d.]+\s*[KMGTP]?B?)", scan)
+    if repaired_match:
+        val = repaired_match.group(1).strip()
+        if val != "0B" and val != "0":
+            result["repaired"] = val
+
+    return result
 
 
 def parse_vdev_tree(status_output: str) -> list[dict]:
@@ -108,7 +175,7 @@ def parse_vdev_tree(status_output: str) -> list[dict]:
         # Determine node type
         if name in ("spares", "logs", "cache"):
             node_type = "section"
-        elif re.match(r"(mirror|raidz[123]?|stripe|replacing)-?\d*", name):
+        elif re.match(r"(mirror|raidz[123]?|stripe|replacing|spare)-?\d*", name):
             node_type = "vdev"
         else:
             node_type = "disk"

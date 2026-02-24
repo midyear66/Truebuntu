@@ -32,12 +32,14 @@ function ErrorCount({ read, write, cksum }) {
   )
 }
 
-function VdevNode({ node, depth, pool, onAction }) {
+function VdevNode({ node, depth, pool, onAction, inSpares = false, inSpareVdev = false }) {
   const indent = depth * 20
   const isFailed = ['FAULTED', 'UNAVAIL', 'REMOVED', 'OFFLINE'].includes(node.state)
   const isDisk = node.type === 'disk'
   const isSection = node.type === 'section'
-  const isSpare = node.state === 'AVAIL'
+  const isSpareVdev = node.type === 'vdev' && /^spare-?\d*$/.test(node.name)
+  const isSpare = inSpares || isSpareVdev || inSpareVdev || node.state === 'AVAIL' || node.state === 'INUSE'
+  const isSpareSection = isSection && node.name === 'spares'
 
   return (
     <>
@@ -68,15 +70,49 @@ function VdevNode({ node, depth, pool, onAction }) {
               <button onClick={() => onAction('detach', node.name)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xs">Detach</button>
             </>
           )}
-          {isDisk && node.state === 'ONLINE' && (
+          {isDisk && !isSpare && node.state === 'ONLINE' && (
             <button onClick={() => onAction('replace', node.name)} className="text-blue-600 hover:text-blue-800 text-xs">Replace</button>
+          )}
+          {isDisk && isSpare && inSpareVdev && (
+            <button onClick={() => onAction('detach', node.name)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xs">Detach</button>
           )}
         </td>
       </tr>
       {node.children && node.children.map(child => (
-        <VdevNode key={child.name} node={child} depth={depth + 1} pool={pool} onAction={onAction} />
+        <VdevNode key={child.name} node={child} depth={depth + 1} pool={pool} onAction={onAction} inSpares={inSpares || isSpareSection} inSpareVdev={inSpareVdev || isSpareVdev} />
       ))}
     </>
+  )
+}
+
+function ScanProgressBar({ progress }) {
+  if (!progress) return null
+  const isScrub = progress.operation === 'scrub'
+  const bgColor = isScrub ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+  const barColor = isScrub ? 'bg-blue-500' : 'bg-orange-500'
+  const textColor = isScrub ? 'text-blue-700 dark:text-blue-300' : 'text-orange-700 dark:text-orange-300'
+
+  return (
+    <div className={`rounded-lg border p-3 mb-3 ${bgColor}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-sm font-semibold ${textColor} capitalize`}>{progress.operation} in progress</span>
+        <span className={`text-sm font-bold ${textColor}`}>{progress.percent.toFixed(1)}%</span>
+      </div>
+      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3 mb-2">
+        <div
+          className={`h-3 rounded-full ${barColor} transition-all duration-500`}
+          style={{ width: `${Math.min(progress.percent, 100)}%` }}
+        />
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+        {progress.speed && <span>Speed: <span className="font-medium text-gray-800 dark:text-gray-200">{progress.speed}</span></span>}
+        {progress.scanned && progress.total && (
+          <span>Scanned: <span className="font-medium text-gray-800 dark:text-gray-200">{progress.scanned} / {progress.total}</span></span>
+        )}
+        {progress.repaired && <span>Repaired: <span className="font-medium text-red-600 dark:text-red-400">{progress.repaired}</span></span>}
+        {progress.eta && <span>ETA: <span className="font-medium text-gray-800 dark:text-gray-200">{progress.eta}</span></span>}
+      </div>
+    </div>
   )
 }
 
@@ -128,6 +164,15 @@ export default function Pools() {
     }
   }
 
+  const stopScrub = async (pool) => {
+    try {
+      await api.post(`/pools/${pool}/scrub/stop`)
+      await loadDetail(pool)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Stop scrub failed')
+    }
+  }
+
   const destroyPool = async (pool) => {
     try {
       await api.delete(`/pools/${pool}`, { data: { confirm: pool } })
@@ -151,6 +196,7 @@ export default function Pools() {
       setShowReplace(diskName)
       setReplaceDisk('')
       setForceReplace(false)
+      setReplaceError('')
       return
     }
 
@@ -187,8 +233,11 @@ export default function Pools() {
     }
   }
 
+  const [replaceError, setReplaceError] = useState('')
+
   const executeReplace = async () => {
     if (!showReplace || !replaceDisk) return
+    setReplaceError('')
     try {
       await api.post(`/pools/${selected}/replace`, {
         old_disk: showReplace,
@@ -198,11 +247,17 @@ export default function Pools() {
       setShowReplace(null)
       await loadDetail(selected)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Replace failed')
+      setReplaceError(err.response?.data?.detail || 'Replace failed')
     }
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (!selected || !detail?.scan_progress) return
+    const interval = setInterval(() => loadDetail(selected), 5000)
+    return () => clearInterval(interval)
+  }, [selected, detail?.scan_progress?.operation])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
@@ -260,13 +315,22 @@ export default function Pools() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">{selected}</h3>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => startScrub(selected)}
-                    disabled={scrubbing === selected}
-                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {scrubbing === selected ? 'Starting...' : 'Start Scrub'}
-                  </button>
+                  {detail?.scan_progress?.operation === 'scrub' ? (
+                    <button
+                      onClick={() => stopScrub(selected)}
+                      className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                    >
+                      Stop Scrub
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => startScrub(selected)}
+                      disabled={scrubbing === selected}
+                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {scrubbing === selected ? 'Starting...' : 'Start Scrub'}
+                    </button>
+                  )}
                   <button
                     onClick={() => setConfirmDestroy(selected)}
                     className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
@@ -285,10 +349,13 @@ export default function Pools() {
                   <div className="text-sm">{detail.errors}</div>
                 </div>
               </div>
-              {detail.scan && (
+              {(detail.scan_progress || detail.scan) && (
                 <div className="mb-4">
                   <span className="text-xs text-gray-500 dark:text-gray-400">Scan</span>
-                  <div className="text-sm whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded mt-1">{detail.scan}</div>
+                  <ScanProgressBar progress={detail.scan_progress} />
+                  {detail.scan && (
+                    <div className="text-sm whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded mt-1">{detail.scan}</div>
+                  )}
                 </div>
               )}
 
@@ -355,6 +422,9 @@ export default function Pools() {
               <input type="checkbox" checked={forceReplace} onChange={e => setForceReplace(e.target.checked)} />
               Force replace (skip some safety checks)
             </label>
+            {replaceError && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{replaceError}</div>
+            )}
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowReplace(null)} className="px-4 py-2 text-sm border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel

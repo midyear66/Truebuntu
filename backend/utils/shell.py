@@ -44,6 +44,9 @@ ALLOWED_COMMANDS = {
     "resolvectl",
     "journalctl",
     "uname",
+    "wipefs",
+    "sgdisk",
+    "blockdev",
 }
 
 # Note: Cron jobs and init/shutdown scripts may contain shell metacharacters

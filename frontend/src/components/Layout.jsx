@@ -13,17 +13,17 @@ const NAV_ITEMS = [
     { path: '/enclosures', label: 'Enclosures' },
     { path: '/updates', label: 'Updates' },
     { path: '/network', label: 'Network' },
-    { path: '/logs', label: 'System Logs' },
-    { path: '/alerts', label: 'Email Alerts' },
+    { path: '/logs', label: 'System logs' },
+    { path: '/alerts', label: 'Email alerts' },
   ]},
   { label: 'Tasks', icon: '⊘', children: [
-    { path: '/cron-jobs', label: 'Cron Jobs' },
-    { path: '/init-shutdown', label: 'Init/Shutdown Scripts' },
-    { path: '/rsync-tasks', label: 'Rsync Tasks' },
-    { path: '/smart-tests', label: 'S.M.A.R.T. Tests' },
-    { path: '/snapshot-tasks', label: 'Periodic Snapshot Tasks' },
-    { path: '/resilver', label: 'Resilver Priority' },
-    { path: '/cloud-sync', label: 'Cloud Sync Tasks' },
+    { path: '/cron-jobs', label: 'Cron jobs' },
+    { path: '/init-shutdown', label: 'Init/shutdown scripts' },
+    { path: '/rsync-tasks', label: 'Rsync tasks' },
+    { path: '/smart-tests', label: 'S.M.A.R.T. tests' },
+    { path: '/snapshot-tasks', label: 'Periodic snapshot tasks' },
+    { path: '/resilver', label: 'Resilver priority' },
+    { path: '/cloud-sync', label: 'Cloud sync tasks' },
   ]},
   { label: 'Storage', icon: '⊡', children: [
     { path: '/pools', label: 'Pools' },
@@ -33,8 +33,8 @@ const NAV_ITEMS = [
     { path: '/replication', label: 'Replication' },
   ]},
   { label: 'Sharing', icon: '⊞', children: [
-    { path: '/shares', label: 'SMB Shares' },
-    { path: '/nfs', label: 'NFS Exports' },
+    { path: '/shares', label: 'SMB shares' },
+    { path: '/nfs', label: 'NFS exports' },
   ]},
   { path: '/services', label: 'Services', icon: '⊛' },
 ]
@@ -142,7 +142,7 @@ export default function Layout({ children, user }) {
                 >
                   <span className="flex items-center">
                     <span className="mr-3 text-base">{item.icon}</span>
-                    <span className="font-medium uppercase text-xs tracking-wide">{item.label}</span>
+                    <span className="font-medium text-xs tracking-wide">{item.label}</span>
                   </span>
                   <span className="text-xs">{expanded.has(item.label) ? '▾' : '▸'}</span>
                 </button>

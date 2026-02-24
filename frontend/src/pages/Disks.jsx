@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Disks() {
   const [disks, setDisks] = useState([])
@@ -8,6 +9,9 @@ export default function Disks() {
   const [smartData, setSmartData] = useState(null)
   const [testing, setTesting] = useState(null)
   const [error, setError] = useState('')
+  const [prepareDialog, setPrepareDialog] = useState(null) // { disk, identify data }
+  const [preparing, setPreparing] = useState(false)
+  const [prepareSuccess, setPrepareSuccess] = useState('')
 
   const load = async () => {
     try {
@@ -22,6 +26,7 @@ export default function Disks() {
 
   const viewSmart = async (disk) => {
     setSelectedDisk(disk)
+    setPrepareSuccess('')
     try {
       const res = await api.get(`/disks/${disk}/smart`)
       setSmartData(res.data)
@@ -42,6 +47,34 @@ export default function Disks() {
     }
   }
 
+  const startPrepare = async (disk) => {
+    setError('')
+    setPrepareSuccess('')
+    try {
+      const res = await api.get(`/disks/${disk}/identify`)
+      setPrepareDialog(res.data)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to identify disk')
+    }
+  }
+
+  const confirmPrepare = async () => {
+    if (!prepareDialog) return
+    setPreparing(true)
+    setError('')
+    try {
+      const res = await api.post(`/disks/${prepareDialog.disk}/prepare`)
+      setPrepareSuccess(res.data.message)
+      setPrepareDialog(null)
+      load()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to prepare disk')
+      setPrepareDialog(null)
+    } finally {
+      setPreparing(false)
+    }
+  }
+
   useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
@@ -50,6 +83,7 @@ export default function Disks() {
     <div>
       <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Disk Health</h2>
       {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
+      {prepareSuccess && <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm rounded">{prepareSuccess}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
@@ -82,6 +116,9 @@ export default function Disks() {
                   </button>
                   <button onClick={() => runTest(selectedDisk, 'long')} disabled={testing === selectedDisk} className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
                     Long Test
+                  </button>
+                  <button onClick={() => startPrepare(selectedDisk)} disabled={preparing} className="px-3 py-1 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50">
+                    Prepare Disk
                   </button>
                 </div>
               </div>
@@ -137,6 +174,62 @@ export default function Disks() {
           )}
         </div>
       </div>
+
+      {prepareDialog && (
+        <ConfirmDialog
+          title={`Prepare Disk: ${prepareDialog.disk}`}
+          onConfirm={confirmPrepare}
+          onCancel={() => setPrepareDialog(null)}
+          confirmText={preparing ? 'Wiping...' : 'Wipe & Prepare'}
+          danger
+          disabled={prepareDialog.mounted || preparing}
+        >
+          <div className="space-y-3">
+            {prepareDialog.mounted && (
+              <div className="p-2 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs rounded border border-red-200 dark:border-red-800">
+                This disk has mounted partitions and cannot be wiped. Unmount all partitions first.
+              </div>
+            )}
+
+            <p>This will permanently erase all filesystem signatures and partition tables on <strong>/dev/{prepareDialog.disk}</strong>.</p>
+
+            {prepareDialog.signatures.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Filesystem Signatures</div>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded p-2 text-xs space-y-1">
+                  {prepareDialog.signatures.map((sig, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span className="font-mono">{sig.device}</span>
+                      <span>{sig.type}{sig.label ? ` "${sig.label}"` : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {prepareDialog.partitions.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Partitions</div>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded p-2 text-xs space-y-1">
+                  {prepareDialog.partitions.map((part, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span className="font-mono">{part.name}</span>
+                      <span>
+                        {part.size} {part.fstype}{part.label ? ` "${part.label}"` : ''}
+                        {part.mountpoint && <span className="text-red-500 ml-1">(mounted: {part.mountpoint})</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {prepareDialog.signatures.length === 0 && prepareDialog.partitions.length === 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">No existing signatures or partitions found. The disk appears already clean.</p>
+            )}
+          </div>
+        </ConfirmDialog>
+      )}
     </div>
   )
 }

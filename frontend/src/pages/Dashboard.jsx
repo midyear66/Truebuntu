@@ -311,6 +311,24 @@ function PoolCard({ pool }) {
           <div className={`h-3 rounded-full ${barColor}`} style={{ width: `${Math.min(capacityNum, 100)}%` }} />
         </div>
       </div>
+      {pool.scan_progress && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className={pool.scan_progress.operation === 'scrub' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-orange-600 dark:text-orange-400 font-medium'}>
+              {pool.scan_progress.operation === 'scrub' ? 'Scrubbing' : 'Resilvering'} {pool.scan_progress.percent.toFixed(1)}%
+            </span>
+            {pool.scan_progress.eta && (
+              <span className="text-gray-500 dark:text-gray-400">ETA: {pool.scan_progress.eta}</span>
+            )}
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${pool.scan_progress.operation === 'scrub' ? 'bg-blue-500' : 'bg-orange-500'}`}
+              style={{ width: `${Math.min(pool.scan_progress.percent, 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
         <div className="flex justify-between">
           <span>Available</span>

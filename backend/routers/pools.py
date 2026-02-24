@@ -11,6 +11,11 @@ from backend.utils.zfs import parse_zpool_list, parse_zpool_status, list_availab
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pools", tags=["pools"], dependencies=[Depends(get_current_user)])
 
+# Run disk-related commands in the host's mount namespace so that
+# device nodes created/removed by udev are visible (the container's
+# own devtmpfs is NOT updated by host udev).
+NSENTER = ["nsenter", "-t", "1", "-m", "--"]
+
 VALID_NAME = re.compile(r"^[a-zA-Z][a-zA-Z0-9_.-]*$")
 VALID_TOPOLOGIES = {"mirror", "raidz", "raidz2", "raidz3", "stripe"}
 RESERVED_NAMES = {"mirror", "raidz", "raidz1", "raidz2", "raidz3", "spare", "log", "cache", "replace", "fault", "online", "offline"}
@@ -38,7 +43,7 @@ class DiskReplaceRequest(BaseModel):
     force: bool = False
 
 
-VALID_DISK = re.compile(r"^[a-zA-Z0-9_-]+$")
+VALID_DISK = re.compile(r"^[a-zA-Z0-9_.\-]+$")
 
 
 @router.get("")
@@ -78,7 +83,7 @@ def create_pool(req: PoolCreateRequest, username: str = Depends(get_current_user
         if not VALID_DISK_PATH.match(disk):
             raise HTTPException(status_code=400, detail=f"Invalid disk path: {disk}")
 
-    cmd = ["zpool", "create"]
+    cmd = NSENTER + ["zpool", "create"]
     if req.force:
         cmd.append("-f")
     cmd.append(req.name)
@@ -164,7 +169,19 @@ def replace_disk(pool: str, req: DiskReplaceRequest, username: str = Depends(get
     if not VALID_DISK.match(req.old_disk) or not VALID_DISK.match(req.new_disk):
         raise HTTPException(status_code=400, detail="Invalid disk name")
 
-    cmd = ["zpool", "replace"]
+    # Prepare the new disk by wiping signatures and partition tables,
+    # then replace. All commands run via nsenter in the host mount
+    # namespace so ZFS can see device nodes created by host udev.
+    wipe = run(NSENTER + ["wipefs", "--all", "--force", f"/dev/{req.new_disk}"])
+    if not wipe.ok:
+        raise HTTPException(status_code=500, detail=f"Failed to wipe new disk: {wipe.stderr.strip()}")
+    zap = run(NSENTER + ["sgdisk", "--zap-all", f"/dev/{req.new_disk}"])
+    if not zap.ok:
+        raise HTTPException(status_code=500, detail=f"Failed to zap new disk: {zap.stderr.strip()}")
+    run(NSENTER + ["blockdev", "--rereadpt", f"/dev/{req.new_disk}"])
+    logger.info(f"Prepared replacement disk {req.new_disk} (wiped signatures and partition tables)")
+
+    cmd = NSENTER + ["zpool", "replace"]
     if req.force:
         cmd.append("-f")
     cmd.extend([pool, req.old_disk, req.new_disk])

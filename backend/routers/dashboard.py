@@ -281,6 +281,8 @@ def _get_pool_details() -> list[dict]:
         pool["cache_count"] = cache_count
         pool["spare_count"] = spare_count
         pool["log_count"] = log_count
+        pool["scan"] = status.get("scan", "")
+        pool["scan_progress"] = status.get("scan_progress")
 
     return pools
 

@@ -9,7 +9,7 @@ FROM python:3.12-slim-bookworm
 WORKDIR /app
 RUN echo "deb http://deb.debian.org/debian bookworm contrib" >> /etc/apt/sources.list.d/contrib.list && \
     apt-get update && apt-get install -y --no-install-recommends \
-    smartmontools rclone zfsutils-linux nfs-common samba-common-bin \
+    smartmontools rclone zfsutils-linux nfs-common samba-common-bin gdisk \
     procps systemd && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
