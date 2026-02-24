@@ -6,7 +6,9 @@ import { useTheme } from '../ThemeContext'
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '\u{1F4CA}' },
   { label: 'Accounts', icon: '\u{1F465}', children: [
-    { path: '/users', label: 'Users' },
+    { path: '/app-users', label: 'App users' },
+    { path: '/smb-users', label: 'SMB users' },
+    { path: '/system-users', label: 'System users & groups' },
   ]},
   { label: 'System', icon: '\u{2699}\uFE0F', children: [
     { path: '/settings', label: 'Settings' },

@@ -7,9 +7,12 @@ services:
     pid: host
     volumes:
       - /etc/samba:/etc/samba
+      - /var/lib/samba:/var/lib/samba
       - /etc/exports:/etc/exports
-      - /etc/passwd:/etc/passwd:ro
+      - /etc/passwd:/etc/passwd
       - /etc/shadow:/etc/shadow
+      - /etc/group:/etc/group
+      - /etc/gshadow:/etc/gshadow
       - /etc/chrony:/etc/chrony
       - /var/run/dbus:/var/run/dbus:ro
       - /etc/netplan:/etc/netplan

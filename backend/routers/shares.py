@@ -75,6 +75,11 @@ def create_share(req: ShareCreateRequest, username: str = Depends(get_current_us
     add_share(req.name, params)
     _reload_smbd()
 
+    # Set directory ownership so write_list users can actually write
+    owner = (req.write_list or req.valid_users or "").split(",")[0].strip().lstrip("@")
+    if owner and req.path:
+        run(["chown", "-R", f"{owner}:{owner}", req.path])
+
     logger.info(f"User '{username}' created SMB share '{req.name}'")
     return {"message": f"Share '{req.name}' created"}
 

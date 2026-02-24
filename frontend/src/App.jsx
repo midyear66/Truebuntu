@@ -18,7 +18,8 @@ import RsyncTasks from './pages/RsyncTasks'
 import SmartTests from './pages/SmartTests'
 import SnapshotTasks from './pages/SnapshotTasks'
 import ResilverPriority from './pages/ResilverPriority'
-import Users from './pages/Users'
+import AppUsers from './pages/AppUsers'
+import SystemUsers from './pages/SystemUsers'
 import Services from './pages/Services'
 import Disks from './pages/Disks'
 import Settings from './pages/Settings'
@@ -39,6 +40,7 @@ import UPSConfig from './pages/UPSConfig'
 import OpenVPNConfig from './pages/OpenVPNConfig'
 import SNMPConfig from './pages/SNMPConfig'
 import Shell from './pages/Shell'
+import SmbUsers from './pages/SmbUsers'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -109,7 +111,10 @@ function App() {
           <Route path="/smart-tests" element={<SmartTests />} />
           <Route path="/snapshot-tasks" element={<SnapshotTasks />} />
           <Route path="/resilver" element={<ResilverPriority />} />
-          <Route path="/users" element={<Users isAdmin={isAdmin} currentUser={user} />} />
+          <Route path="/app-users" element={<AppUsers isAdmin={isAdmin} currentUser={user} />} />
+          <Route path="/system-users" element={<SystemUsers />} />
+          <Route path="/users" element={<Navigate to="/app-users" replace />} />
+          <Route path="/smb-users" element={<SmbUsers />} />
           <Route path="/services" element={<Services />} />
           <Route path="/services/ddns" element={<DynamicDNS />} />
           <Route path="/services/ftp" element={<FTPConfig />} />

@@ -53,6 +53,8 @@ ALLOWED_COMMANDS = {
     "mkdir",
     "openvpn",
     "upsc",
+    "pdbedit",
+    "net",
 }
 
 # Note: Cron jobs and init/shutdown scripts may contain shell metacharacters
@@ -73,7 +75,7 @@ class ShellResult:
         return self.returncode == 0
 
 
-def run(args: list[str], timeout: int = 30, check: bool = False) -> ShellResult:
+def run(args: list[str], timeout: int = 30, check: bool = False, stdin: str | None = None) -> ShellResult:
     if not args:
         raise ValueError("Empty command")
 
@@ -90,6 +92,7 @@ def run(args: list[str], timeout: int = 30, check: bool = False) -> ShellResult:
     try:
         proc = subprocess.run(
             args,
+            input=stdin,
             capture_output=True,
             text=True,
             timeout=timeout,

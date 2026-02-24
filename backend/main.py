@@ -16,7 +16,7 @@ from backend.routers import (
     system, enclosure, updates, totp,
     network, cron_jobs, init_shutdown, rsync_tasks, smart_tests, resilver,
     replication, logs, alerts, jobs,
-    ddns, ftp, ups, openvpn, snmp, shell,
+    ddns, ftp, ups, openvpn, snmp, shell, smb_users,
 )
 
 logging.basicConfig(
@@ -98,6 +98,7 @@ app.include_router(ups.router, prefix="/api")
 app.include_router(openvpn.router, prefix="/api")
 app.include_router(snmp.router, prefix="/api")
 app.include_router(shell.router, prefix="/api")
+app.include_router(smb_users.router, prefix="/api")
 
 
 @app.on_event("startup")
