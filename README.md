@@ -32,7 +32,7 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 Run the one-liner on a fresh Ubuntu/Debian x86_64 host (8 GB+ RAM):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/midyear66/trubuntu/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/midyear66/Truebuntu/main/install.sh | sudo bash
 ```
 
 This installs all host dependencies (Docker, ZFS, Samba, NFS, Chrony, smartmontools, rclone, netplan), clones the repo to `/opt/truebuntu`, generates a `.env` with a random secret key, and starts the container.
@@ -44,7 +44,7 @@ Once complete, open `http://<your-server-ip>` in a browser and create your admin
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/midyear66/trubuntu.git /opt/truebuntu
+   git clone https://github.com/midyear66/Truebuntu.git /opt/truebuntu
    cd /opt/truebuntu
    ```
 
