@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 from backend.utils.smb_conf import get_shares, add_share, update_share, remove_share
 
@@ -66,7 +66,7 @@ def list_shares():
 
 
 @router.post("")
-def create_share(req: ShareCreateRequest, username: str = Depends(get_current_user)):
+def create_share(req: ShareCreateRequest, username: str = Depends(get_current_admin)):
     existing = [s["name"] for s in get_shares()]
     if req.name in existing:
         raise HTTPException(status_code=409, detail=f"Share '{req.name}' already exists")
@@ -85,7 +85,7 @@ def create_share(req: ShareCreateRequest, username: str = Depends(get_current_us
 
 
 @router.put("/{name}")
-def modify_share(name: str, req: ShareUpdateRequest, username: str = Depends(get_current_user)):
+def modify_share(name: str, req: ShareUpdateRequest, username: str = Depends(get_current_admin)):
     existing = {s["name"]: s for s in get_shares()}
     if name not in existing:
         raise HTTPException(status_code=404, detail=f"Share '{name}' not found")
@@ -103,7 +103,7 @@ def modify_share(name: str, req: ShareUpdateRequest, username: str = Depends(get
 
 
 @router.delete("/{name}")
-def delete_share(name: str, username: str = Depends(get_current_user)):
+def delete_share(name: str, username: str = Depends(get_current_admin)):
     existing = [s["name"] for s in get_shares()]
     if name not in existing:
         raise HTTPException(status_code=404, detail=f"Share '{name}' not found")

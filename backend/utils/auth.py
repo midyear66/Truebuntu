@@ -8,7 +8,9 @@ from fastapi import Request, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+SECRET_KEY = os.environ.get("SECRET_KEY", "")
+if not SECRET_KEY or SECRET_KEY in ("dev-secret-key-change-in-production", "change-me-to-a-random-string"):
+    raise RuntimeError("SECRET_KEY must be set to a secure random value in .env")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 COOKIE_NAME = "nas_session"

@@ -7,27 +7,27 @@ import logoDark from '../assets/logo-dark.svg'
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '\u{1F4CA}' },
-  { label: 'Accounts', icon: '\u{1F465}', children: [
+  { label: 'Accounts', icon: '\u{1F465}', admin: true, children: [
     { path: '/app-users', label: 'App users' },
     { path: '/smb-users', label: 'SMB users' },
     { path: '/system-users', label: 'System users & groups' },
   ]},
-  { label: 'System', icon: '\u{2699}\uFE0F', children: [
+  { label: 'System', icon: '\u{2699}\uFE0F', admin: true, children: [
     { path: '/settings', label: 'Settings' },
     { path: '/enclosures', label: 'Enclosures' },
     { path: '/updates', label: 'Updates' },
     { path: '/logs', label: 'System logs' },
     { path: '/alerts', label: 'Email alerts' },
-    { path: '/jobs', label: 'Background jobs' },
   ]},
-  { label: 'Network', icon: '\u{1F310}', children: [
+  { path: '/jobs', label: 'Jobs', icon: '\u{23F3}' },
+  { label: 'Network', icon: '\u{1F310}', admin: true, children: [
     { path: '/network', label: 'Network summary' },
     { path: '/network/global', label: 'Global configuration' },
     { path: '/network/interfaces', label: 'Interfaces' },
     { path: '/network/static-routes', label: 'Static routes' },
     { path: '/network/ipmi', label: 'IPMI' },
   ]},
-  { label: 'Tasks', icon: '\u{1F552}', children: [
+  { label: 'Tasks', icon: '\u{1F552}', admin: true, children: [
     { path: '/cron-jobs', label: 'Cron jobs' },
     { path: '/init-shutdown', label: 'Init/shutdown scripts' },
     { path: '/rsync-tasks', label: 'Rsync tasks' },
@@ -48,7 +48,7 @@ const NAV_ITEMS = [
     { path: '/nfs', label: 'NFS exports' },
   ]},
   { path: '/services', label: 'Services', icon: '\u{1F527}' },
-  { path: '/shell', label: 'Shell', icon: '\u{1F4DF}' },
+  { path: '/shell', label: 'Shell', icon: '\u{1F4DF}', admin: true },
 ]
 
 function findGroupForPath(pathname) {
@@ -62,7 +62,7 @@ function findGroupForPath(pathname) {
   return null
 }
 
-export default function Layout({ children, user }) {
+export default function Layout({ children, user, isAdmin }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
@@ -144,7 +144,7 @@ export default function Layout({ children, user }) {
           <img src={logoDark} alt="Truebuntu" className="h-14 hidden dark:block" />
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
-          {NAV_ITEMS.map(item =>
+          {NAV_ITEMS.filter(item => !item.admin || isAdmin).map(item =>
             item.children ? (
               <div key={item.label}>
                 <button

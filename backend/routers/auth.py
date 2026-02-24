@@ -67,7 +67,7 @@ def login(req: LoginRequest, response: Response):
     db = get_db()
     try:
         row = db.execute(
-            "SELECT username, password_hash, totp_enabled FROM users WHERE username = ?",
+            "SELECT username, password_hash, totp_enabled, is_admin FROM users WHERE username = ?",
             (req.username,),
         ).fetchone()
     finally:
@@ -91,7 +91,7 @@ def login(req: LoginRequest, response: Response):
         path="/",
     )
     logger.info(f"User '{req.username}' logged in")
-    return {"message": "Logged in", "username": req.username}
+    return {"message": "Logged in", "username": req.username, "is_admin": bool(row["is_admin"])}
 
 
 @router.post("/logout")

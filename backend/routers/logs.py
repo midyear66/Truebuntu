@@ -3,11 +3,11 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/logs", tags=["logs"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/logs", tags=["logs"], dependencies=[Depends(get_current_admin)])
 
 
 @router.get("")

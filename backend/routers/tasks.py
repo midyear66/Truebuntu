@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(get_current_admin)])
 
 VALID_TYPES = {"scrub", "rsync", "smart_test", "rclone_sync", "custom"}
 
@@ -58,7 +58,7 @@ def get_task(task_id: int):
 
 
 @router.post("")
-def create_task(req: TaskCreateRequest, username: str = Depends(get_current_user)):
+def create_task(req: TaskCreateRequest, username: str = Depends(get_current_admin)):
     if req.type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid task type: {req.type}")
 
@@ -78,13 +78,14 @@ def create_task(req: TaskCreateRequest, username: str = Depends(get_current_user
 
 
 @router.put("/{task_id}")
-def update_task(task_id: int, req: TaskUpdateRequest, username: str = Depends(get_current_user)):
+def update_task(task_id: int, req: TaskUpdateRequest, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         existing = db.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Task not found")
 
+        ALLOWED_FIELDS = {"name", "schedule", "config", "enabled"}
         updates = {}
         if req.name is not None:
             updates["name"] = req.name
@@ -95,6 +96,7 @@ def update_task(task_id: int, req: TaskUpdateRequest, username: str = Depends(ge
         if req.enabled is not None:
             updates["enabled"] = int(req.enabled)
 
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FIELDS}
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(
@@ -110,7 +112,7 @@ def update_task(task_id: int, req: TaskUpdateRequest, username: str = Depends(ge
 
 
 @router.delete("/{task_id}")
-def delete_task(task_id: int, username: str = Depends(get_current_user)):
+def delete_task(task_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         result = db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
@@ -125,7 +127,7 @@ def delete_task(task_id: int, username: str = Depends(get_current_user)):
 
 
 @router.post("/{task_id}/run")
-def run_task(task_id: int, username: str = Depends(get_current_user)):
+def run_task(task_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()

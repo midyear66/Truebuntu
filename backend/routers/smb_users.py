@@ -4,11 +4,11 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/smb-users", tags=["smb-users"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/smb-users", tags=["smb-users"], dependencies=[Depends(get_current_admin)])
 
 VALID_USERNAME = re.compile(r"^[a-z_][a-z0-9_-]*$")
 SYSTEM_UID_MAX = 999

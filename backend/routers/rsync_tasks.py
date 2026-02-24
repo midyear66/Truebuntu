@@ -1,15 +1,66 @@
 import logging
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run as shell_run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/rsync-tasks", tags=["rsync-tasks"], dependencies=[Depends(get_current_user)])
+
+VALID_HOSTNAME = re.compile(r"^[a-zA-Z0-9._-]+$")
+VALID_RSYNC_USERNAME = re.compile(r"^[a-zA-Z0-9._-]+$")
+VALID_PATH = re.compile(r"^[a-zA-Z0-9_./ -]+$")
+
+# Whitelist of safe rsync flags (flags and their --long forms)
+SAFE_RSYNC_FLAGS = {
+    "--progress", "--verbose", "-v", "--stats", "--human-readable", "-h",
+    "--partial", "--bwlimit", "--timeout", "--checksum", "-c",
+    "--exclude", "--include", "--itemize-changes", "-i",
+    "--dry-run", "-n", "--no-perms", "--no-owner", "--no-group",
+    "--update", "-u", "--inplace", "--append", "--append-verify",
+}
+# Flags that can execute arbitrary commands
+RSYNC_DANGEROUS_FLAGS = {"--rsh", "-e", "--rsync-path", "--daemon", "--config"}
+
+
+def _validate_rsync_extra_args(extra_args: str):
+    """Validate that extra_args only contains safe rsync flags."""
+    if not extra_args:
+        return
+    for arg in extra_args.split():
+        # Split --flag=value on '='
+        flag = arg.split("=", 1)[0]
+        # Check against dangerous flags
+        if flag in RSYNC_DANGEROUS_FLAGS:
+            raise HTTPException(status_code=400, detail=f"Dangerous rsync flag not allowed: {flag}")
+        # Single-char flags like -v, -n are fine; multi-char must be in whitelist
+        if flag.startswith("--") and flag not in SAFE_RSYNC_FLAGS:
+            raise HTTPException(status_code=400, detail=f"Rsync flag not allowed: {flag}")
+
+
+def _validate_rsync_fields(remote_host: str | None, remote_user: str | None,
+                            remote_port: int | None, remote_path: str | None,
+                            source: str | None, destination: str | None,
+                            extra_args: str | None):
+    if remote_host is not None and remote_host and not VALID_HOSTNAME.match(remote_host):
+        raise HTTPException(status_code=400, detail="Invalid remote hostname")
+    if remote_user is not None and remote_user and not VALID_RSYNC_USERNAME.match(remote_user):
+        raise HTTPException(status_code=400, detail="Invalid remote username")
+    if remote_port is not None and not (1 <= remote_port <= 65535):
+        raise HTTPException(status_code=400, detail="Port must be between 1 and 65535")
+    if remote_path is not None and remote_path and not VALID_PATH.match(remote_path):
+        raise HTTPException(status_code=400, detail="Invalid remote path")
+    if source is not None and source and not VALID_PATH.match(source):
+        raise HTTPException(status_code=400, detail="Invalid source path")
+    if destination is not None and destination and not VALID_PATH.match(destination):
+        raise HTTPException(status_code=400, detail="Invalid destination path")
+    if extra_args is not None:
+        _validate_rsync_extra_args(extra_args)
+router = APIRouter(prefix="/rsync-tasks", tags=["rsync-tasks"], dependencies=[Depends(get_current_admin)])
 
 
 class RsyncTaskCreate(BaseModel):
@@ -73,7 +124,9 @@ def get_rsync_task(task_id: int):
 
 
 @router.post("")
-def create_rsync_task(req: RsyncTaskCreate, username: str = Depends(get_current_user)):
+def create_rsync_task(req: RsyncTaskCreate, username: str = Depends(get_current_admin)):
+    _validate_rsync_fields(req.remote_host, req.remote_user, req.remote_port,
+                            req.remote_path, req.source, req.destination, req.extra_args)
     db = get_db()
     try:
         cursor = db.execute(
@@ -97,13 +150,19 @@ def create_rsync_task(req: RsyncTaskCreate, username: str = Depends(get_current_
 
 
 @router.put("/{task_id}")
-def update_rsync_task(task_id: int, req: RsyncTaskUpdate, username: str = Depends(get_current_user)):
+def update_rsync_task(task_id: int, req: RsyncTaskUpdate, username: str = Depends(get_current_admin)):
+    _validate_rsync_fields(req.remote_host, req.remote_user, req.remote_port,
+                            req.remote_path, req.source, req.destination, req.extra_args)
     db = get_db()
     try:
         existing = db.execute("SELECT * FROM rsync_tasks WHERE id = ?", (task_id,)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Rsync task not found")
 
+        ALLOWED_FIELDS = {"name", "source", "destination", "direction", "mode",
+                          "remote_host", "remote_port", "remote_user", "remote_path",
+                          "schedule", "extra_args", "recursive", "archive", "compress",
+                          "delete_dest", "enabled"}
         updates = {}
         for field in ("name", "source", "destination", "direction", "mode",
                        "remote_host", "remote_port", "remote_user", "remote_path",
@@ -116,6 +175,7 @@ def update_rsync_task(task_id: int, req: RsyncTaskUpdate, username: str = Depend
             if val is not None:
                 updates[field] = int(val)
 
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FIELDS}
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(f"UPDATE rsync_tasks SET {set_clause} WHERE id = ?", (*updates.values(), task_id))
@@ -128,7 +188,7 @@ def update_rsync_task(task_id: int, req: RsyncTaskUpdate, username: str = Depend
 
 
 @router.delete("/{task_id}")
-def delete_rsync_task(task_id: int, username: str = Depends(get_current_user)):
+def delete_rsync_task(task_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         result = db.execute("DELETE FROM rsync_tasks WHERE id = ?", (task_id,))
@@ -143,7 +203,7 @@ def delete_rsync_task(task_id: int, username: str = Depends(get_current_user)):
 
 
 @router.post("/{task_id}/run")
-def run_rsync_task(task_id: int, username: str = Depends(get_current_user)):
+def run_rsync_task(task_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute("SELECT * FROM rsync_tasks WHERE id = ?", (task_id,)).fetchone()
@@ -152,6 +212,11 @@ def run_rsync_task(task_id: int, username: str = Depends(get_current_user)):
         task = dict(row)
     finally:
         db.close()
+
+    # Validate fields before building command
+    _validate_rsync_fields(task["remote_host"], task["remote_user"], task["remote_port"],
+                            task["remote_path"], task["source"], task["destination"],
+                            task["extra_args"])
 
     # Build rsync command
     args = ["rsync"]
@@ -165,6 +230,7 @@ def run_rsync_task(task_id: int, username: str = Depends(get_current_user)):
         args.append("--delete")
 
     if task["extra_args"]:
+        # Already validated above; split and append safe args
         args.extend(task["extra_args"].split())
 
     if task["mode"] == "ssh" and task["remote_host"]:

@@ -25,6 +25,17 @@ async def shell_ws(websocket: WebSocket):
         await websocket.close(code=4401, reason="Not authenticated")
         return
 
+    # Verify admin
+    from backend.database import get_db
+    db = get_db()
+    try:
+        row = db.execute("SELECT is_admin FROM users WHERE username = ?", (username,)).fetchone()
+        if not row or not row["is_admin"]:
+            await websocket.close(code=4403, reason="Admin access required")
+            return
+    finally:
+        db.close()
+
     await websocket.accept()
     logger.info("Shell session started for user %s", username)
 

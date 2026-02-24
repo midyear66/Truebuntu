@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.jobs import JobManager
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def get_job(job_id: int):
 
 
 @router.post("/{job_id}/cancel")
-def cancel_job(job_id: int, username: str = Depends(get_current_user)):
+def cancel_job(job_id: int, username: str = Depends(get_current_admin)):
     job = mgr.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")

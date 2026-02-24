@@ -6,11 +6,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/updates", tags=["updates"])
+router = APIRouter(prefix="/updates", tags=["updates"], dependencies=[Depends(get_current_admin)])
 
 UPGRADE_RE = re.compile(
     r"^(.+?)/\S+\s+(\S+)\s+\S+\s+\[upgradable from:\s+(\S+)\]$"
@@ -54,7 +54,7 @@ def _parse_upgradable(output: str) -> list[dict]:
 
 
 @router.post("/check")
-def check_updates(username: str = Depends(get_current_user)):
+def check_updates(username: str = Depends(get_current_admin)):
     # Run apt update
     update_result = run([
         "nsenter", "-t", "1", "-m", "-u", "-n", "-i",
@@ -81,7 +81,7 @@ def check_updates(username: str = Depends(get_current_user)):
 
 
 @router.get("/available")
-def get_available(username: str = Depends(get_current_user)):
+def get_available(username: str = Depends(get_current_admin)):
     cached = _get_setting("updates_available")
     last_check = _get_setting("updates_last_check")
     packages = json.loads(cached) if cached else []
@@ -93,7 +93,7 @@ def get_available(username: str = Depends(get_current_user)):
 
 
 @router.post("/apply")
-def apply_updates(username: str = Depends(get_current_user)):
+def apply_updates(username: str = Depends(get_current_admin)):
     result = run([
         "nsenter", "-t", "1", "-m", "-u", "-n", "-i",
         "apt-get", "upgrade", "-y",

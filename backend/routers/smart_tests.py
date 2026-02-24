@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run as shell_run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/smart-tests", tags=["smart-tests"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/smart-tests", tags=["smart-tests"], dependencies=[Depends(get_current_admin)])
 
 VALID_TEST_TYPES = {"short", "long", "conveyance", "offline"}
 
@@ -61,7 +61,7 @@ def get_smart_test(test_id: int):
 
 
 @router.post("")
-def create_smart_test(req: SmartTestCreate, username: str = Depends(get_current_user)):
+def create_smart_test(req: SmartTestCreate, username: str = Depends(get_current_admin)):
     if req.test_type not in VALID_TEST_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid test type: {req.test_type}")
 
@@ -82,7 +82,7 @@ def create_smart_test(req: SmartTestCreate, username: str = Depends(get_current_
 
 
 @router.put("/{test_id}")
-def update_smart_test(test_id: int, req: SmartTestUpdate, username: str = Depends(get_current_user)):
+def update_smart_test(test_id: int, req: SmartTestUpdate, username: str = Depends(get_current_admin)):
     if req.test_type is not None and req.test_type not in VALID_TEST_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid test type: {req.test_type}")
 
@@ -92,6 +92,7 @@ def update_smart_test(test_id: int, req: SmartTestUpdate, username: str = Depend
         if not existing:
             raise HTTPException(status_code=404, detail="SMART test not found")
 
+        ALLOWED_FIELDS = {"name", "disks", "test_type", "schedule", "enabled"}
         updates = {}
         if req.name is not None:
             updates["name"] = req.name
@@ -104,6 +105,7 @@ def update_smart_test(test_id: int, req: SmartTestUpdate, username: str = Depend
         if req.enabled is not None:
             updates["enabled"] = int(req.enabled)
 
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FIELDS}
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(f"UPDATE smart_tests SET {set_clause} WHERE id = ?", (*updates.values(), test_id))
@@ -116,7 +118,7 @@ def update_smart_test(test_id: int, req: SmartTestUpdate, username: str = Depend
 
 
 @router.delete("/{test_id}")
-def delete_smart_test(test_id: int, username: str = Depends(get_current_user)):
+def delete_smart_test(test_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         result = db.execute("DELETE FROM smart_tests WHERE id = ?", (test_id,))
@@ -131,7 +133,7 @@ def delete_smart_test(test_id: int, username: str = Depends(get_current_user)):
 
 
 @router.post("/{test_id}/run")
-def run_smart_test(test_id: int, username: str = Depends(get_current_user)):
+def run_smart_test(test_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute("SELECT * FROM smart_tests WHERE id = ?", (test_id,)).fetchone()

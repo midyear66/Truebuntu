@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/init-shutdown", tags=["init-shutdown"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/init-shutdown", tags=["init-shutdown"], dependencies=[Depends(get_current_admin)])
 
 VALID_TYPES = {"init", "shutdown"}
 VALID_WHEN = {"pre", "post"}
@@ -56,7 +56,7 @@ def get_script(script_id: int):
 
 
 @router.post("")
-def create_script(req: ScriptCreate, username: str = Depends(get_current_user)):
+def create_script(req: ScriptCreate, username: str = Depends(get_current_admin)):
     if req.type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid type: {req.type}. Must be init or shutdown")
     if req.when_run not in VALID_WHEN:
@@ -79,7 +79,7 @@ def create_script(req: ScriptCreate, username: str = Depends(get_current_user)):
 
 
 @router.put("/{script_id}")
-def update_script(script_id: int, req: ScriptUpdate, username: str = Depends(get_current_user)):
+def update_script(script_id: int, req: ScriptUpdate, username: str = Depends(get_current_admin)):
     if req.type is not None and req.type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid type: {req.type}")
     if req.when_run is not None and req.when_run not in VALID_WHEN:
@@ -91,6 +91,7 @@ def update_script(script_id: int, req: ScriptUpdate, username: str = Depends(get
         if not existing:
             raise HTTPException(status_code=404, detail="Script not found")
 
+        ALLOWED_FIELDS = {"name", "type", "when_run", "command", "timeout", "enabled"}
         updates = {}
         for field in ("name", "type", "when_run", "command", "timeout"):
             val = getattr(req, field)
@@ -99,6 +100,7 @@ def update_script(script_id: int, req: ScriptUpdate, username: str = Depends(get
         if req.enabled is not None:
             updates["enabled"] = int(req.enabled)
 
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FIELDS}
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(f"UPDATE init_shutdown_scripts SET {set_clause} WHERE id = ?", (*updates.values(), script_id))
@@ -111,7 +113,7 @@ def update_script(script_id: int, req: ScriptUpdate, username: str = Depends(get
 
 
 @router.delete("/{script_id}")
-def delete_script(script_id: int, username: str = Depends(get_current_user)):
+def delete_script(script_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         result = db.execute("DELETE FROM init_shutdown_scripts WHERE id = ?", (script_id,))
@@ -126,7 +128,7 @@ def delete_script(script_id: int, username: str = Depends(get_current_user)):
 
 
 @router.post("/{script_id}/run")
-def run_script(script_id: int, username: str = Depends(get_current_user)):
+def run_script(script_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute("SELECT * FROM init_shutdown_scripts WHERE id = ?", (script_id,)).fetchone()

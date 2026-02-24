@@ -4,11 +4,11 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(get_current_admin)])
 
 VALID_USERNAME = re.compile(r"^[a-z_][a-z0-9_-]*$")
 SYSTEM_UID_MAX = 999
@@ -74,7 +74,7 @@ def list_groups():
 
 
 @router.post("")
-def create_user(req: UserCreateRequest, username: str = Depends(get_current_user)):
+def create_user(req: UserCreateRequest, username: str = Depends(get_current_admin)):
     if not VALID_USERNAME.match(req.username):
         raise HTTPException(status_code=400, detail="Invalid username")
     if len(req.password) < 8:
@@ -123,7 +123,7 @@ def create_user(req: UserCreateRequest, username: str = Depends(get_current_user
 
 
 @router.delete("/{target_user}")
-def delete_user(target_user: str, username: str = Depends(get_current_user)):
+def delete_user(target_user: str, username: str = Depends(get_current_admin)):
     if not VALID_USERNAME.match(target_user):
         raise HTTPException(status_code=400, detail="Invalid username")
 
@@ -137,7 +137,7 @@ def delete_user(target_user: str, username: str = Depends(get_current_user)):
 
 
 @router.post("/{target_user}/password")
-def change_password(target_user: str, req: UserPasswordRequest, username: str = Depends(get_current_user)):
+def change_password(target_user: str, req: UserPasswordRequest, username: str = Depends(get_current_admin)):
     if not VALID_USERNAME.match(target_user):
         raise HTTPException(status_code=400, detail="Invalid username")
     if len(req.password) < 8:
@@ -164,7 +164,7 @@ def change_password(target_user: str, req: UserPasswordRequest, username: str = 
 
 
 @router.post("/groups")
-def create_group(req: GroupCreateRequest, username: str = Depends(get_current_user)):
+def create_group(req: GroupCreateRequest, username: str = Depends(get_current_admin)):
     if not VALID_USERNAME.match(req.name):
         raise HTTPException(status_code=400, detail="Invalid group name")
 
@@ -182,7 +182,7 @@ def create_group(req: GroupCreateRequest, username: str = Depends(get_current_us
 
 
 @router.post("/{target_user}/groups/{group}")
-def add_user_to_group(target_user: str, group: str, username: str = Depends(get_current_user)):
+def add_user_to_group(target_user: str, group: str, username: str = Depends(get_current_admin)):
     result = run(["usermod", "-aG", group, target_user])
     if not result.ok:
         raise HTTPException(status_code=500, detail=result.stderr.strip())

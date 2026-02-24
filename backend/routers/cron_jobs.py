@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/cron-jobs", tags=["cron-jobs"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/cron-jobs", tags=["cron-jobs"], dependencies=[Depends(get_current_admin)])
 
 
 class CronJobCreate(BaseModel):
@@ -52,7 +52,7 @@ def get_cron_job(job_id: int):
 
 
 @router.post("")
-def create_cron_job(req: CronJobCreate, username: str = Depends(get_current_user)):
+def create_cron_job(req: CronJobCreate, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         cursor = db.execute(
@@ -70,13 +70,14 @@ def create_cron_job(req: CronJobCreate, username: str = Depends(get_current_user
 
 
 @router.put("/{job_id}")
-def update_cron_job(job_id: int, req: CronJobUpdate, username: str = Depends(get_current_user)):
+def update_cron_job(job_id: int, req: CronJobUpdate, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         existing = db.execute("SELECT * FROM cron_jobs WHERE id = ?", (job_id,)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Cron job not found")
 
+        ALLOWED_FIELDS = {"name", "command", "schedule", "user", "description", "enabled"}
         updates = {}
         for field in ("name", "command", "schedule", "user", "description"):
             val = getattr(req, field)
@@ -85,6 +86,7 @@ def update_cron_job(job_id: int, req: CronJobUpdate, username: str = Depends(get
         if req.enabled is not None:
             updates["enabled"] = int(req.enabled)
 
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FIELDS}
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(f"UPDATE cron_jobs SET {set_clause} WHERE id = ?", (*updates.values(), job_id))
@@ -97,7 +99,7 @@ def update_cron_job(job_id: int, req: CronJobUpdate, username: str = Depends(get
 
 
 @router.delete("/{job_id}")
-def delete_cron_job(job_id: int, username: str = Depends(get_current_user)):
+def delete_cron_job(job_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         result = db.execute("DELETE FROM cron_jobs WHERE id = ?", (job_id,))
@@ -112,7 +114,7 @@ def delete_cron_job(job_id: int, username: str = Depends(get_current_user)):
 
 
 @router.post("/{job_id}/run")
-def run_cron_job(job_id: int, username: str = Depends(get_current_user)):
+def run_cron_job(job_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute("SELECT * FROM cron_jobs WHERE id = ?", (job_id,)).fetchone()

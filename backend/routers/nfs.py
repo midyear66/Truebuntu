@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 from backend.utils.exports import parse_exports, add_export, update_export, remove_export
 
@@ -31,7 +31,7 @@ def list_exports():
 
 
 @router.post("")
-def create_export(req: NFSExportCreate, username: str = Depends(get_current_user)):
+def create_export(req: NFSExportCreate, username: str = Depends(get_current_admin)):
     try:
         add_export(req.path, [c.model_dump() for c in req.clients])
     except ValueError as e:
@@ -43,7 +43,7 @@ def create_export(req: NFSExportCreate, username: str = Depends(get_current_user
 
 
 @router.put("/{path:path}")
-def modify_export(path: str, req: NFSExportUpdate, username: str = Depends(get_current_user)):
+def modify_export(path: str, req: NFSExportUpdate, username: str = Depends(get_current_admin)):
     export_path = f"/{path}"
     try:
         update_export(export_path, [c.model_dump() for c in req.clients])
@@ -56,7 +56,7 @@ def modify_export(path: str, req: NFSExportUpdate, username: str = Depends(get_c
 
 
 @router.delete("/{path:path}")
-def delete_export(path: str, username: str = Depends(get_current_user)):
+def delete_export(path: str, username: str = Depends(get_current_admin)):
     export_path = f"/{path}"
     try:
         remove_export(export_path)
@@ -69,7 +69,7 @@ def delete_export(path: str, username: str = Depends(get_current_user)):
 
 
 @router.post("/reload")
-def reload_exports(username: str = Depends(get_current_user)):
+def reload_exports(username: str = Depends(get_current_admin)):
     _reload_exports()
     logger.info(f"User '{username}' reloaded NFS exports")
     return {"message": "NFS exports reloaded"}

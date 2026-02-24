@@ -11,15 +11,15 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 
 from backend.database import DATABASE_PATH, get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(get_current_admin)])
 
 
 @router.get("/export")
-def export_config(username: str = Depends(get_current_user)):
+def export_config(username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         export = {
@@ -105,7 +105,7 @@ def export_config(username: str = Depends(get_current_user)):
 
 
 @router.post("/import")
-async def import_config(file: UploadFile = File(...), username: str = Depends(get_current_user)):
+async def import_config(file: UploadFile = File(...), username: str = Depends(get_current_admin)):
     content = await file.read()
     try:
         data = json.loads(content)
@@ -260,7 +260,11 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
             for filename, content in data["netplan"].items():
                 if not filename.endswith(".yaml"):
                     continue
-                (netplan_dir / filename).write_text(yaml.dump(content, default_flow_style=False, sort_keys=False))
+                target = (netplan_dir / filename).resolve()
+                if not str(target).startswith(str(netplan_dir.resolve())):
+                    logger.warning(f"Skipping invalid netplan filename: {filename}")
+                    continue
+                target.write_text(yaml.dump(content, default_flow_style=False, sort_keys=False))
             run(["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "netplan", "apply"], timeout=30)
             results["netplan"] = len(data["netplan"])
 
@@ -272,7 +276,7 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
 
 
 @router.get("/audit-log")
-def get_audit_log(limit: int = 100):
+def get_audit_log(limit: int = 100, admin: str = Depends(get_current_admin)):
     db = get_db()
     try:
         rows = db.execute(

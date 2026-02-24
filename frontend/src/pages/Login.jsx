@@ -24,7 +24,7 @@ export default function Login({ onLogin }) {
         setNeeds2fa(true)
         setPendingToken(res.data.pending_token)
       } else {
-        onLogin(res.data.username || username)
+        onLogin(res.data.username || username, res.data.is_admin)
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed')
@@ -42,7 +42,7 @@ export default function Login({ onLogin }) {
         pending_token: pendingToken,
         code: otpCode,
       })
-      onLogin(res.data.username || username)
+      onLogin(res.data.username || username, res.data.is_admin)
     } catch (err) {
       setError(err.response?.data?.detail || 'Verification failed')
     } finally {

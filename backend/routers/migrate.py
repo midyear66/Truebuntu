@@ -9,10 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/migrate", tags=["migrate"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/migrate", tags=["migrate"], dependencies=[Depends(get_current_admin)])
 
 
 class ApplyMigrationRequest(BaseModel):
@@ -24,7 +24,7 @@ class ApplyMigrationRequest(BaseModel):
 
 
 @router.post("/truenas")
-async def preview_truenas_config(file: UploadFile = File(...), username: str = Depends(get_current_user)):
+async def preview_truenas_config(file: UploadFile = File(...), username: str = Depends(get_current_admin)):
     if not file.filename.endswith(".tar"):
         raise HTTPException(status_code=400, detail="Expected a .tar file")
 
@@ -42,7 +42,7 @@ async def preview_truenas_config(file: UploadFile = File(...), username: str = D
 @router.post("/truenas/apply")
 async def apply_truenas_config(
     file: UploadFile = File(...),
-    username: str = Depends(get_current_user),
+    username: str = Depends(get_current_admin),
 ):
     content = await file.read()
     try:

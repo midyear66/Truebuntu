@@ -4,7 +4,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 from backend.utils.zfs import parse_zpool_list, parse_zpool_status, list_available_disks
 
@@ -91,7 +91,7 @@ def list_importable_pools():
 
 
 @router.post("/import")
-def import_pool(req: PoolImportRequest, username: str = Depends(get_current_user)):
+def import_pool(req: PoolImportRequest, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(req.name):
         raise HTTPException(status_code=400, detail="Invalid pool name")
 
@@ -124,7 +124,7 @@ def pool_detail(pool: str):
 
 
 @router.post("")
-def create_pool(req: PoolCreateRequest, username: str = Depends(get_current_user)):
+def create_pool(req: PoolCreateRequest, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(req.name):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if req.name.lower() in RESERVED_NAMES:
@@ -171,7 +171,7 @@ def create_pool(req: PoolCreateRequest, username: str = Depends(get_current_user
 
 
 @router.delete("/{pool}")
-def destroy_pool(pool: str, req: PoolDestroyRequest, username: str = Depends(get_current_user)):
+def destroy_pool(pool: str, req: PoolDestroyRequest, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if req.confirm != pool:
@@ -186,7 +186,7 @@ def destroy_pool(pool: str, req: PoolDestroyRequest, username: str = Depends(get
 
 
 @router.post("/{pool}/scrub")
-def start_scrub(pool: str, username: str = Depends(get_current_user)):
+def start_scrub(pool: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
 
@@ -211,7 +211,7 @@ def start_scrub(pool: str, username: str = Depends(get_current_user)):
 
 
 @router.post("/{pool}/scrub/stop")
-def stop_scrub(pool: str, username: str = Depends(get_current_user)):
+def stop_scrub(pool: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
 
@@ -237,7 +237,7 @@ def pool_history(pool: str, count: int = 50):
 
 
 @router.post("/{pool}/replace")
-def replace_disk(pool: str, req: DiskReplaceRequest, username: str = Depends(get_current_user)):
+def replace_disk(pool: str, req: DiskReplaceRequest, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if not VALID_DISK.match(req.old_disk) or not VALID_DISK.match(req.new_disk):
@@ -269,7 +269,7 @@ def replace_disk(pool: str, req: DiskReplaceRequest, username: str = Depends(get
 
 
 @router.post("/{pool}/disk/{disk}/offline")
-def offline_disk(pool: str, disk: str, username: str = Depends(get_current_user)):
+def offline_disk(pool: str, disk: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if not VALID_DISK.match(disk):
@@ -284,7 +284,7 @@ def offline_disk(pool: str, disk: str, username: str = Depends(get_current_user)
 
 
 @router.post("/{pool}/disk/{disk}/online")
-def online_disk(pool: str, disk: str, username: str = Depends(get_current_user)):
+def online_disk(pool: str, disk: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if not VALID_DISK.match(disk):
@@ -299,7 +299,7 @@ def online_disk(pool: str, disk: str, username: str = Depends(get_current_user))
 
 
 @router.post("/{pool}/attach")
-def attach_disk(pool: str, req: DiskAttachRequest, username: str = Depends(get_current_user)):
+def attach_disk(pool: str, req: DiskAttachRequest, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if not VALID_DISK.match(req.existing_disk) or not VALID_DISK.match(req.new_disk):
@@ -329,7 +329,7 @@ def attach_disk(pool: str, req: DiskAttachRequest, username: str = Depends(get_c
 
 
 @router.post("/{pool}/disk/{disk}/detach")
-def detach_disk(pool: str, disk: str, username: str = Depends(get_current_user)):
+def detach_disk(pool: str, disk: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if not VALID_DISK.match(disk):
@@ -344,7 +344,7 @@ def detach_disk(pool: str, disk: str, username: str = Depends(get_current_user))
 
 
 @router.post("/{pool}/spare")
-def add_spare(pool: str, disk: str, username: str = Depends(get_current_user)):
+def add_spare(pool: str, disk: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if not VALID_DISK.match(disk):
@@ -359,7 +359,7 @@ def add_spare(pool: str, disk: str, username: str = Depends(get_current_user)):
 
 
 @router.delete("/{pool}/spare/{disk}")
-def remove_spare(pool: str, disk: str, username: str = Depends(get_current_user)):
+def remove_spare(pool: str, disk: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(pool):
         raise HTTPException(status_code=400, detail="Invalid pool name")
     if not VALID_DISK.match(disk):

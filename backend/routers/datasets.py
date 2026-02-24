@@ -4,7 +4,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 from backend.utils.zfs import parse_zfs_list, parse_zfs_get
 
@@ -56,7 +56,7 @@ def dataset_properties(dataset: str):
 
 
 @router.post("")
-def create_dataset(req: DatasetCreateRequest, username: str = Depends(get_current_user)):
+def create_dataset(req: DatasetCreateRequest, username: str = Depends(get_current_admin)):
     if not VALID_DATASET.match(req.name):
         raise HTTPException(status_code=400, detail="Invalid dataset name")
 
@@ -76,7 +76,7 @@ def create_dataset(req: DatasetCreateRequest, username: str = Depends(get_curren
 
 
 @router.put("/{dataset:path}")
-def update_dataset(dataset: str, req: DatasetUpdateRequest, username: str = Depends(get_current_user)):
+def update_dataset(dataset: str, req: DatasetUpdateRequest, username: str = Depends(get_current_admin)):
     if not VALID_DATASET.match(dataset):
         raise HTTPException(status_code=400, detail="Invalid dataset name")
 
@@ -92,7 +92,7 @@ def update_dataset(dataset: str, req: DatasetUpdateRequest, username: str = Depe
 
 
 @router.delete("/{dataset:path}")
-def delete_dataset(dataset: str, recursive: bool = False, username: str = Depends(get_current_user)):
+def delete_dataset(dataset: str, recursive: bool = False, username: str = Depends(get_current_admin)):
     if not VALID_DATASET.match(dataset):
         raise HTTPException(status_code=400, detail="Invalid dataset name")
 

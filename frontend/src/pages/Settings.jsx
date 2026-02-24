@@ -669,7 +669,7 @@ export default function Settings() {
               ) : (
                 <div className="space-y-4 max-w-md">
                   <p className="text-sm text-gray-600 dark:text-gray-300">Scan this QR code with your authenticator app:</p>
-                  <div className="bg-white dark:bg-gray-800 border rounded p-4 inline-block" dangerouslySetInnerHTML={{ __html: tfaSetup.qr_svg }} />
+                  <div className="bg-white border rounded p-4 inline-block [&_svg]:w-48 [&_svg]:h-48" dangerouslySetInnerHTML={{ __html: tfaSetup.qr_svg }} />
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Or enter this secret manually:</p>
                     <code className="text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded select-all">{tfaSetup.secret}</code>

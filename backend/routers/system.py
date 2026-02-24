@@ -4,11 +4,11 @@ import re
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/system", tags=["system"])
+router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(get_current_admin)])
 
 HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$")
 CHRONY_CONF = "/etc/chrony/chrony.conf"
@@ -28,7 +28,7 @@ class NTPServer(BaseModel):
 # --- General ---
 
 @router.get("/general")
-def get_general(username: str = Depends(get_current_user)):
+def get_general(username: str = Depends(get_current_admin)):
     hostname_result = run([
         "nsenter", "-t", "1", "-m", "-u", "-n", "-i",
         "hostnamectl", "--static",
@@ -57,7 +57,7 @@ def get_general(username: str = Depends(get_current_user)):
 
 
 @router.put("/general")
-def update_general(body: GeneralUpdate, username: str = Depends(get_current_user)):
+def update_general(body: GeneralUpdate, username: str = Depends(get_current_admin)):
     results = {}
 
     if body.hostname is not None:
@@ -152,12 +152,12 @@ def _restart_chrony():
 
 
 @router.get("/ntp")
-def get_ntp(username: str = Depends(get_current_user)):
+def get_ntp(username: str = Depends(get_current_admin)):
     return _parse_chrony_conf()
 
 
 @router.post("/ntp")
-def add_ntp(body: NTPServer, username: str = Depends(get_current_user)):
+def add_ntp(body: NTPServer, username: str = Depends(get_current_admin)):
     servers = _parse_chrony_conf()
     for s in servers:
         if s["address"] == body.address:
@@ -170,7 +170,7 @@ def add_ntp(body: NTPServer, username: str = Depends(get_current_user)):
 
 
 @router.delete("/ntp/{address:path}")
-def remove_ntp(address: str, username: str = Depends(get_current_user)):
+def remove_ntp(address: str, username: str = Depends(get_current_admin)):
     servers = _parse_chrony_conf()
     new_servers = [s for s in servers if s["address"] != address]
     if len(new_servers) == len(servers):

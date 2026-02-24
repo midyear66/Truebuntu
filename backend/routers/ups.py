@@ -5,11 +5,11 @@ from pydantic import BaseModel
 from typing import Optional
 import subprocess
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/ups", tags=["ups"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/ups", tags=["ups"], dependencies=[Depends(get_current_admin)])
 
 NUT_CONF = "/etc/nut/nut.conf"
 UPS_CONF = "/etc/nut/ups.conf"
@@ -122,7 +122,7 @@ def get_config():
 
 
 @router.put("/config")
-def save_config(body: UPSConfig, username: str = Depends(get_current_user)):
+def save_config(body: UPSConfig, username: str = Depends(get_current_admin)):
     if not _is_installed():
         raise HTTPException(status_code=400, detail="NUT (UPS) is not installed")
 
