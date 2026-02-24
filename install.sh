@@ -6,7 +6,7 @@ set -euo pipefail
 # =============================================================================
 # Configuration — edit these to customize the install
 # =============================================================================
-REPO_URL="https://github.com/sanford-truebuntu/nas-webui.git"
+REPO_URL="https://github.com/midyear66/trubuntu.git"
 INSTALL_DIR="/opt/truebuntu"
 MIN_RAM_KB=8000000  # 8 GB in kB
 
