@@ -121,19 +121,27 @@ export default function Shell() {
   }, [connect])
 
   return (
-    <div style={{ height: 'calc(100vh - 57px)', margin: '-24px', display: 'flex', flexDirection: 'column' }}>
-      {disconnected && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm shrink-0">
-          <span>Session disconnected.</span>
-          <button
-            onClick={connect}
-            className="px-3 py-1 text-xs bg-red-100 dark:bg-red-900/40 rounded hover:bg-red-200 dark:hover:bg-red-900/60"
-          >
-            Reconnect
-          </button>
+    <div>
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Shell</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Terminal</span>
+          {disconnected && (
+            <button
+              onClick={connect}
+              className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Reconnect
+            </button>
+          )}
         </div>
-      )}
-      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }} />
+        {disconnected && (
+          <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm border-b dark:border-gray-600">
+            Session disconnected.
+          </div>
+        )}
+        <div ref={containerRef} style={{ height: 'calc(100vh - 240px)', minHeight: '300px' }} className="p-2" />
+      </div>
     </div>
   )
 }
