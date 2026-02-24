@@ -119,28 +119,49 @@ function CardTitle({ children }) {
 }
 
 // --- useCardOrder hook ---
+const PREF_KEY = 'dashboard-card-order'
+
+function saveToServer(order) {
+  api.put(`/auth/preferences/${PREF_KEY}`, { value: JSON.stringify(order) }).catch(() => {})
+}
+
 function useCardOrder(currentCardIds) {
   const currentKey = currentCardIds.join(',')
-
   const [order, setOrder] = useState(() => {
     try {
-      const saved = localStorage.getItem('dashboard-card-order')
+      const saved = localStorage.getItem(PREF_KEY)
       if (saved) return JSON.parse(saved)
     } catch {}
     return currentCardIds
   })
+  const serverLoaded = useRef(false)
+
+  // Load from server on mount (once)
+  useEffect(() => {
+    if (serverLoaded.current) return
+    serverLoaded.current = true
+    api.get(`/auth/preferences/${PREF_KEY}`)
+      .then(res => {
+        const saved = JSON.parse(res.data.value)
+        if (Array.isArray(saved) && saved.length > 0) {
+          localStorage.setItem(PREF_KEY, JSON.stringify(saved))
+          setOrder(saved)
+        }
+      })
+      .catch(() => {}) // 404 or offline — keep localStorage / default
+  }, [])
 
   // Reconcile when currentCardIds changes (pools/interfaces added/removed)
   useEffect(() => {
+    if (currentCardIds.length === 0) return
     setOrder(prev => {
       const currentSet = new Set(currentCardIds)
       const prevSet = new Set(prev)
-      // Prune stale IDs
       const pruned = prev.filter(id => currentSet.has(id))
-      // Append new IDs at the end
       const added = currentCardIds.filter(id => !prevSet.has(id))
       const next = [...pruned, ...added]
-      localStorage.setItem('dashboard-card-order', JSON.stringify(next))
+      localStorage.setItem(PREF_KEY, JSON.stringify(next))
+      saveToServer(next)
       return next
     })
   }, [currentKey])
@@ -152,7 +173,8 @@ function useCardOrder(currentCardIds) {
       const newIndex = prev.indexOf(overId)
       if (oldIndex === -1 || newIndex === -1) return prev
       const next = arrayMove(prev, oldIndex, newIndex)
-      localStorage.setItem('dashboard-card-order', JSON.stringify(next))
+      localStorage.setItem(PREF_KEY, JSON.stringify(next))
+      saveToServer(next)
       return next
     })
   }

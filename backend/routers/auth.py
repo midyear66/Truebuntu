@@ -100,6 +100,57 @@ def logout(response: Response):
     return {"message": "Logged out"}
 
 
+ALLOWED_PREFERENCE_KEYS = {"dashboard-card-order"}
+
+
+class PreferenceValue(BaseModel):
+    value: str
+
+
+@router.get("/preferences/{key}")
+def get_preference(key: str, username: str = Depends(get_current_user)):
+    if key not in ALLOWED_PREFERENCE_KEYS:
+        raise HTTPException(status_code=400, detail="Invalid preference key")
+
+    db = get_db()
+    try:
+        user = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        row = db.execute(
+            "SELECT value FROM user_preferences WHERE user_id = ? AND key = ?",
+            (user["id"], key),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Preference not set")
+        return {"value": row["value"]}
+    finally:
+        db.close()
+
+
+@router.put("/preferences/{key}")
+def set_preference(key: str, req: PreferenceValue, username: str = Depends(get_current_user)):
+    if key not in ALLOWED_PREFERENCE_KEYS:
+        raise HTTPException(status_code=400, detail="Invalid preference key")
+
+    db = get_db()
+    try:
+        user = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        db.execute(
+            "INSERT OR REPLACE INTO user_preferences (user_id, key, value) VALUES (?, ?, ?)",
+            (user["id"], key, req.value),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    return {"message": "Saved"}
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
