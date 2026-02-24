@@ -1,9 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import api from '../api'
 import StatusBadge from '../components/StatusBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PoolCreateWizard from '../components/PoolCreateWizard'
 import useJobPoller from '../useJobPoller'
+
+const ChevronRight = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+  </svg>
+)
+
+const ChevronDown = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  </svg>
+)
 
 function DiskStateBadge({ state }) {
   const styles = {
@@ -125,8 +137,10 @@ function ScanProgressBar({ progress }) {
 
 export default function Pools() {
   const [pools, setPools] = useState([])
-  const [selected, setSelected] = useState(null)
-  const [detail, setDetail] = useState(null)
+  const [expandedRows, setExpandedRows] = useState(new Set())
+  const [detailMap, setDetailMap] = useState({})
+  const [loadingPool, setLoadingPool] = useState(null)
+  const [activePool, setActivePool] = useState(null)
   const [loading, setLoading] = useState(true)
   const [scrubbing, setScrubbing] = useState(null)
   const [confirmDestroy, setConfirmDestroy] = useState(null)
@@ -150,6 +164,7 @@ export default function Pools() {
   const [importName, setImportName] = useState('')
   const [forceImport, setForceImport] = useState(false)
   const [importError, setImportError] = useState('')
+  const [replaceError, setReplaceError] = useState('')
   const { submitJob, cancelJob, getJobForResource } = useJobPoller()
 
   const load = async () => {
@@ -163,21 +178,36 @@ export default function Pools() {
     }
   }
 
-  const loadDetail = async (name) => {
-    setSelected(name)
+  const fetchDetail = async (name) => {
+    setLoadingPool(name)
     try {
       const res = await api.get(`/pools/${name}`)
-      setDetail(res.data)
+      setDetailMap(prev => ({ ...prev, [name]: res.data }))
     } catch (err) {
-      setDetail(null)
+      setDetailMap(prev => ({ ...prev, [name]: null }))
+    } finally {
+      setLoadingPool(null)
     }
+  }
+
+  const toggleExpand = (poolName) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(poolName)) {
+        next.delete(poolName)
+      } else {
+        next.add(poolName)
+        if (!detailMap[poolName]) fetchDetail(poolName)
+      }
+      return next
+    })
   }
 
   const startScrub = async (pool) => {
     setScrubbing(pool)
     try {
       await submitJob(() => api.post(`/pools/${pool}/scrub`))
-      await loadDetail(pool)
+      await fetchDetail(pool)
     } catch (err) {
       if (err.response?.status === 409) {
         setError(`A scrub is already running on pool '${pool}'`)
@@ -192,7 +222,7 @@ export default function Pools() {
   const stopScrub = async (pool) => {
     try {
       await api.post(`/pools/${pool}/scrub/stop`)
-      await loadDetail(pool)
+      await fetchDetail(pool)
     } catch (err) {
       setError(err.response?.data?.detail || 'Stop scrub failed')
     }
@@ -202,15 +232,25 @@ export default function Pools() {
     try {
       await api.delete(`/pools/${pool}`, { data: { confirm: pool } })
       setConfirmDestroy(null)
-      setSelected(null)
-      setDetail(null)
+      setExpandedRows(prev => {
+        const next = new Set(prev)
+        next.delete(pool)
+        return next
+      })
+      setDetailMap(prev => {
+        const next = { ...prev }
+        delete next[pool]
+        return next
+      })
       load()
     } catch (err) {
       setError(err.response?.data?.detail || 'Destroy failed')
     }
   }
 
-  const handleDiskAction = async (action, diskName) => {
+  const handleDiskAction = async (action, diskName, poolName) => {
+    setActivePool(poolName)
+
     if (action === 'remove_spare') {
       setConfirmAction({ action: 'remove_spare', disk: diskName, title: `Remove spare ${diskName}?`, message: `This will remove ${diskName} as a hot spare from the pool.` })
       return
@@ -256,8 +296,8 @@ export default function Pools() {
 
     if (action === 'online') {
       try {
-        await api.post(`/pools/${selected}/disk/${diskName}/online`)
-        await loadDetail(selected)
+        await api.post(`/pools/${poolName}/disk/${diskName}/online`)
+        await fetchDetail(poolName)
       } catch (err) {
         setError(err.response?.data?.detail || 'Failed to bring disk online')
       }
@@ -269,37 +309,36 @@ export default function Pools() {
     const { action, disk } = confirmAction
     try {
       if (action === 'remove_spare') {
-        await api.delete(`/pools/${selected}/spare/${disk}`)
+        await api.delete(`/pools/${activePool}/spare/${disk}`)
       } else {
-        await api.post(`/pools/${selected}/disk/${disk}/${action}`)
+        await api.post(`/pools/${activePool}/disk/${disk}/${action}`)
       }
       setConfirmAction(null)
-      await loadDetail(selected)
+      await fetchDetail(activePool)
     } catch (err) {
       setError(err.response?.data?.detail || `Failed to ${action} disk`)
       setConfirmAction(null)
     }
   }
 
-  const [replaceError, setReplaceError] = useState('')
-
   const executeReplace = async () => {
     if (!showReplace || !replaceDisk) return
     setReplaceError('')
     try {
-      await api.post(`/pools/${selected}/replace`, {
+      await api.post(`/pools/${activePool}/replace`, {
         old_disk: showReplace,
         new_disk: replaceDisk,
         force: forceReplace,
       })
       setShowReplace(null)
-      await loadDetail(selected)
+      await fetchDetail(activePool)
     } catch (err) {
       setReplaceError(err.response?.data?.detail || 'Replace failed')
     }
   }
 
-  const openAddSpare = async () => {
+  const openAddSpare = async (poolName) => {
+    setActivePool(poolName)
     try {
       const res = await api.get('/disks/available')
       setAvailableDisks(res.data)
@@ -315,9 +354,9 @@ export default function Pools() {
     if (!spareDisk) return
     setSpareError('')
     try {
-      await api.post(`/pools/${selected}/spare?disk=${spareDisk}`)
+      await api.post(`/pools/${activePool}/spare?disk=${spareDisk}`)
       setShowAddSpare(false)
-      await loadDetail(selected)
+      await fetchDetail(activePool)
     } catch (err) {
       setSpareError(err.response?.data?.detail || 'Failed to add spare')
     }
@@ -327,13 +366,13 @@ export default function Pools() {
     if (!showAttach || !attachDisk) return
     setAttachError('')
     try {
-      await api.post(`/pools/${selected}/attach`, {
+      await api.post(`/pools/${activePool}/attach`, {
         existing_disk: showAttach,
         new_disk: attachDisk,
         force: forceAttach,
       })
       setShowAttach(null)
-      await loadDetail(selected)
+      await fetchDetail(activePool)
     } catch (err) {
       setAttachError(err.response?.data?.detail || 'Attach failed')
     }
@@ -371,10 +410,15 @@ export default function Pools() {
   useEffect(() => { load() }, [])
 
   useEffect(() => {
-    if (!selected || !detail?.scan_progress) return
-    const interval = setInterval(() => loadDetail(selected), 5000)
+    const polling = Object.entries(detailMap)
+      .filter(([, d]) => d?.scan_progress)
+      .map(([name]) => name)
+    if (polling.length === 0) return
+    const interval = setInterval(() => {
+      polling.forEach(name => fetchDetail(name))
+    }, 5000)
     return () => clearInterval(interval)
-  }, [selected, detail?.scan_progress?.operation])
+  }, [detailMap])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
@@ -408,115 +452,132 @@ export default function Pools() {
         />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-            {pools.map(pool => (
-              <div
-                key={pool.name}
-                onClick={() => loadDetail(pool.name)}
-                className={`p-4 border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                  selected === pool.name ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-l-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{pool.name}</span>
-                  <StatusBadge status={pool.health} />
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {pool.allocated} / {pool.size} ({pool.capacity})
-                </div>
-              </div>
-            ))}
-            {pools.length === 0 && (
-              <div className="p-4 text-sm text-gray-400 dark:text-gray-500">No pools found</div>
-            )}
-          </div>
-        </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Pool</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Health</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Usage</th>
+              <th className="px-4 py-3 w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {pools.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  No pools found.
+                </td>
+              </tr>
+            ) : pools.map(pool => (
+              <Fragment key={pool.name}>
+                <tr
+                  className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  onClick={() => toggleExpand(pool.name)}
+                >
+                  <td className="px-4 py-3 font-medium">{pool.name}</td>
+                  <td className="px-4 py-3"><StatusBadge status={pool.health} /></td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{pool.allocated} / {pool.size} ({pool.capacity})</td>
+                  <td className="px-4 py-3 text-gray-400">
+                    {expandedRows.has(pool.name) ? <ChevronDown /> : <ChevronRight />}
+                  </td>
+                </tr>
 
-        <div className="lg:col-span-2">
-          {detail && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">{selected}</h3>
-                <div className="flex gap-2">
-                  {detail?.scan_progress?.operation === 'scrub' ? (
-                    <button
-                      onClick={() => stopScrub(selected)}
-                      className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                    >
-                      Stop Scrub
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => startScrub(selected)}
-                      disabled={scrubbing === selected}
-                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {scrubbing === selected ? 'Starting...' : 'Start Scrub'}
-                    </button>
-                  )}
-                  <button
-                    onClick={openAddSpare}
-                    className="px-3 py-1 text-sm border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded hover:bg-green-50 dark:hover:bg-green-900/20"
-                  >
-                    Add Spare
-                  </button>
-                  <button
-                    onClick={() => setConfirmDestroy(selected)}
-                    className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    Destroy
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">State</span>
-                  <div><StatusBadge status={detail.state} /></div>
-                </div>
-                <div>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Errors</span>
-                  <div className="text-sm">{detail.errors}</div>
-                </div>
-              </div>
-              {(detail.scan_progress || detail.scan) && (
-                <div className="mb-4">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Scan</span>
-                  <ScanProgressBar progress={detail.scan_progress} />
-                  {detail.scan && (
-                    <div className="text-sm whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded mt-1">{detail.scan}</div>
-                  )}
-                </div>
-              )}
+                {expandedRows.has(pool.name) && (
+                  <tr className="bg-gray-50 dark:bg-gray-700 border-t dark:border-gray-700">
+                    <td colSpan={4} className="px-6 py-4">
+                      {loadingPool === pool.name ? (
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Loading pool details...</div>
+                      ) : detailMap[pool.name] ? (
+                        <div>
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">State</span>
+                              <div className="mt-1"><StatusBadge status={detailMap[pool.name].state} /></div>
+                            </div>
+                            <div>
+                              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Errors</span>
+                              <div className="text-sm mt-1">{detailMap[pool.name].errors}</div>
+                            </div>
+                          </div>
 
-              {/* Vdev Tree */}
-              <div className="mb-4">
-                <span className="text-xs text-gray-500 dark:text-gray-400">Configuration</span>
-                {detail.vdevs && detail.vdevs.length > 0 ? (
-                  <div className="mt-1 bg-gray-50 dark:bg-gray-700 rounded overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-                          <th className="px-4 py-2">Name</th>
-                          <th className="px-4 py-2">State</th>
-                          <th className="px-4 py-2">R/W/C Errors</th>
-                          <th className="px-4 py-2 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detail.vdevs.map(vdev => (
-                          <VdevNode key={vdev.name} node={vdev} depth={0} pool={selected} onAction={handleDiskAction} />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <pre className="text-xs bg-gray-50 dark:bg-gray-700 p-3 rounded mt-1 overflow-x-auto">{detail.config}</pre>
+                          {(detailMap[pool.name].scan_progress || detailMap[pool.name].scan) && (
+                            <div className="mb-4">
+                              <ScanProgressBar progress={detailMap[pool.name].scan_progress} />
+                              {detailMap[pool.name].scan && (
+                                <div className="text-sm whitespace-pre-wrap font-mono text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1">{detailMap[pool.name].scan}</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Vdev Tree */}
+                          <div className="mb-4">
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Configuration</span>
+                            {detailMap[pool.name].vdevs && detailMap[pool.name].vdevs.length > 0 ? (
+                              <div className="mt-1 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-600">
+                                      <th className="px-4 py-2">Name</th>
+                                      <th className="px-4 py-2">State</th>
+                                      <th className="px-4 py-2">R/W/C Errors</th>
+                                      <th className="px-4 py-2 text-right">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {detailMap[pool.name].vdevs.map(vdev => (
+                                      <VdevNode key={vdev.name} node={vdev} depth={0} pool={pool.name} onAction={(action, disk) => handleDiskAction(action, disk, pool.name)} />
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-3 rounded mt-1 overflow-x-auto">{detailMap[pool.name].config}</pre>
+                            )}
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex gap-2 mt-4">
+                            {detailMap[pool.name]?.scan_progress?.operation === 'scrub' ? (
+                              <button
+                                onClick={e => { e.stopPropagation(); stopScrub(pool.name) }}
+                                className="px-3 py-1.5 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                              >
+                                Stop Scrub
+                              </button>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); startScrub(pool.name) }}
+                                disabled={scrubbing === pool.name}
+                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                              >
+                                {scrubbing === pool.name ? 'Starting...' : 'Start Scrub'}
+                              </button>
+                            )}
+                            <button
+                              onClick={e => { e.stopPropagation(); openAddSpare(pool.name) }}
+                              className="px-3 py-1.5 text-xs border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded hover:bg-green-50 dark:hover:bg-green-900/20"
+                            >
+                              Add Spare
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setConfirmDestroy(pool.name) }}
+                              className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              Destroy
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
                 )}
-              </div>
-            </div>
-          )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+          {pools.length} pool{pools.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -526,7 +587,7 @@ export default function Pools() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-2">Add Hot Spare</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-              Add a hot spare to pool <span className="font-medium">{selected}</span>. It will automatically replace a failed drive.
+              Add a hot spare to pool <span className="font-medium">{activePool}</span>. It will automatically replace a failed drive.
             </p>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Disk</label>
@@ -574,7 +635,7 @@ export default function Pools() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-2">Attach Disk</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-              Attach a new disk to <span className="font-mono font-medium">{showAttach}</span> in pool <span className="font-medium">{selected}</span> to create a mirror.
+              Attach a new disk to <span className="font-mono font-medium">{showAttach}</span> in pool <span className="font-medium">{activePool}</span> to create a mirror.
             </p>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">New Disk</label>
@@ -680,7 +741,7 @@ export default function Pools() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-2">Replace Disk</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-              Replace <span className="font-mono font-medium">{showReplace}</span> in pool <span className="font-medium">{selected}</span>
+              Replace <span className="font-mono font-medium">{showReplace}</span> in pool <span className="font-medium">{activePool}</span>
             </p>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">New Disk</label>
