@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useTheme } from '../ThemeContext'
+import logo from '../assets/logo.svg'
+import logoDark from '../assets/logo-dark.svg'
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '\u{1F4CA}' },
@@ -137,8 +139,9 @@ export default function Layout({ children, user }) {
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
       <aside className="w-56 bg-gray-200 dark:bg-gray-950 text-gray-600 dark:text-gray-300 flex flex-col border-r border-gray-300 dark:border-gray-800">
-        <div className="p-4 border-b border-gray-300 dark:border-gray-700">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Truebuntu</h1>
+        <div className="px-4 py-5 border-b border-gray-300 dark:border-gray-700">
+          <img src={logo} alt="Truebuntu" className="h-14 dark:hidden" />
+          <img src={logoDark} alt="Truebuntu" className="h-14 hidden dark:block" />
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
           {NAV_ITEMS.map(item =>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="760" height="240" viewBox="0 0 760 240" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F4C81"/>
+      <stop offset="100%" stop-color="#1CA7EC"/>
+    </linearGradient>
+
+    <linearGradient id="serverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2B3A42"/>
+      <stop offset="100%" stop-color="#1C252B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Dominant Circle -->
+  <circle cx="120" cy="120" r="85"
+          fill="none"
+          stroke="url(#blueGrad)"
+          stroke-width="16"/>
+
+  <!-- Perfectly Centered NAS Stack -->
+  <!-- Stack height = 84px, centered around cy=120 -->
+  <rect x="75" y="78" width="90" height="24" rx="5" fill="url(#serverGrad)"/>
+  <rect x="75" y="108" width="90" height="24" rx="5" fill="url(#serverGrad)"/>
+  <rect x="75" y="138" width="90" height="24" rx="5" fill="url(#serverGrad)"/>
+
+  <!-- Status LEDs -->
+  <circle cx="150" cy="90" r="3" fill="#1CA7EC"/>
+  <circle cx="150" cy="120" r="3" fill="#1CA7EC"/>
+  <circle cx="150" cy="150" r="3" fill="#1CA7EC"/>
+
+  <!-- Perfectly centered title -->
+  <text x="240"
+        y="120"
+        dominant-baseline="middle"
+        font-family="Segoe UI, Ubuntu, sans-serif"
+        font-size="104"
+        font-weight="600"
+        fill="#1C252B">
+    True<tspan fill="#1CA7EC">buntu</tspan>
+  </text>
+
+</svg>

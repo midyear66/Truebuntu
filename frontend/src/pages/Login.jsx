@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import api from '../api'
+import logo from '../assets/logo.svg'
+import logoDark from '../assets/logo-dark.svg'
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -50,8 +52,11 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6 text-center">Truebuntu</h1>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-md">
+        <div className="flex justify-center mb-8">
+          <img src={logo} alt="Truebuntu" className="h-28 dark:hidden" />
+          <img src={logoDark} alt="Truebuntu" className="h-28 hidden dark:block" />
+        </div>
 
         {!needs2fa ? (
           <form onSubmit={handleSubmit}>
