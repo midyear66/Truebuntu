@@ -1,4 +1,10 @@
-# Truebuntu
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/src/assets/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="frontend/src/assets/logo.svg">
+    <img alt="Truebuntu" src="frontend/src/assets/logo.svg" width="400">
+  </picture>
+</p>
 
 A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Built as a modern replacement for the aging TrueNAS Core (FreeBSD) on compact hardware like the [TrueNAS Mini](https://www.truenas.com/truenas-mini/) — run a full-featured storage OS on Ubuntu with a single Docker container instead of a dedicated appliance OS.
 
