@@ -80,7 +80,7 @@ function App() {
   if (needsSetup) {
     return (
       <BrowserRouter>
-        <Setup onSetup={(u) => { setUser(u); setNeedsSetup(false) }} />
+        <Setup onSetup={(u) => { setUser(u); setIsAdmin(true); setNeedsSetup(false) }} />
       </BrowserRouter>
     )
   }
@@ -88,53 +88,57 @@ function App() {
   if (!user) {
     return (
       <BrowserRouter>
-        <Login onLogin={setUser} />
+        <Login onLogin={(username, admin) => { setUser(username); setIsAdmin(!!admin) }} />
       </BrowserRouter>
     )
   }
 
+  const adminOnly = (el) => isAdmin ? el : <Navigate to="/dashboard" replace />
+
   return (
     <BrowserRouter>
-      <Layout user={user}>
+      <Layout user={user} isAdmin={isAdmin}>
         <Routes>
+          {/* Read-only for all authenticated users */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/pools" element={<Pools />} />
           <Route path="/datasets" element={<Datasets />} />
           <Route path="/snapshots" element={<Snapshots />} />
           <Route path="/shares" element={<Shares />} />
           <Route path="/nfs" element={<NFS />} />
-          <Route path="/cloud-sync" element={<CloudSync />} />
-          <Route path="/tasks" element={<Navigate to="/cron-jobs" replace />} />
-          <Route path="/cron-jobs" element={<CronJobs />} />
-          <Route path="/init-shutdown" element={<InitShutdown />} />
-          <Route path="/rsync-tasks" element={<RsyncTasks />} />
-          <Route path="/smart-tests" element={<SmartTests />} />
-          <Route path="/snapshot-tasks" element={<SnapshotTasks />} />
-          <Route path="/resilver" element={<ResilverPriority />} />
-          <Route path="/app-users" element={<AppUsers isAdmin={isAdmin} currentUser={user} />} />
-          <Route path="/system-users" element={<SystemUsers />} />
-          <Route path="/users" element={<Navigate to="/app-users" replace />} />
-          <Route path="/smb-users" element={<SmbUsers />} />
-          <Route path="/services" element={<Services />} />
-          <Route path="/services/ddns" element={<DynamicDNS />} />
-          <Route path="/services/ftp" element={<FTPConfig />} />
-          <Route path="/services/ups" element={<UPSConfig />} />
-          <Route path="/services/openvpn" element={<OpenVPNConfig />} />
-          <Route path="/services/snmp" element={<SNMPConfig />} />
-          <Route path="/shell" element={<Shell />} />
           <Route path="/disks" element={<Disks />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/enclosures" element={<Enclosures />} />
-          <Route path="/updates" element={<Updates />} />
-          <Route path="/network" element={<NetworkSummary />} />
-          <Route path="/network/global" element={<GlobalConfig />} />
-          <Route path="/network/interfaces" element={<NetworkInterfaces />} />
-          <Route path="/network/static-routes" element={<StaticRoutes />} />
-          <Route path="/network/ipmi" element={<IPMI />} />
           <Route path="/replication" element={<Replication />} />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="/alerts" element={<Alerts />} />
+          <Route path="/services" element={<Services />} />
           <Route path="/jobs" element={<Jobs />} />
+          {/* Admin-only sections */}
+          <Route path="/cloud-sync" element={adminOnly(<CloudSync />)} />
+          <Route path="/tasks" element={<Navigate to="/cron-jobs" replace />} />
+          <Route path="/cron-jobs" element={adminOnly(<CronJobs />)} />
+          <Route path="/init-shutdown" element={adminOnly(<InitShutdown />)} />
+          <Route path="/rsync-tasks" element={adminOnly(<RsyncTasks />)} />
+          <Route path="/smart-tests" element={adminOnly(<SmartTests />)} />
+          <Route path="/snapshot-tasks" element={adminOnly(<SnapshotTasks />)} />
+          <Route path="/resilver" element={adminOnly(<ResilverPriority />)} />
+          <Route path="/app-users" element={adminOnly(<AppUsers isAdmin={isAdmin} currentUser={user} />)} />
+          <Route path="/system-users" element={adminOnly(<SystemUsers />)} />
+          <Route path="/users" element={<Navigate to="/app-users" replace />} />
+          <Route path="/smb-users" element={adminOnly(<SmbUsers />)} />
+          <Route path="/services/ddns" element={adminOnly(<DynamicDNS />)} />
+          <Route path="/services/ftp" element={adminOnly(<FTPConfig />)} />
+          <Route path="/services/ups" element={adminOnly(<UPSConfig />)} />
+          <Route path="/services/openvpn" element={adminOnly(<OpenVPNConfig />)} />
+          <Route path="/services/snmp" element={adminOnly(<SNMPConfig />)} />
+          <Route path="/shell" element={adminOnly(<Shell />)} />
+          <Route path="/settings" element={adminOnly(<Settings />)} />
+          <Route path="/enclosures" element={adminOnly(<Enclosures />)} />
+          <Route path="/updates" element={adminOnly(<Updates />)} />
+          <Route path="/network" element={adminOnly(<NetworkSummary />)} />
+          <Route path="/network/global" element={adminOnly(<GlobalConfig />)} />
+          <Route path="/network/interfaces" element={adminOnly(<NetworkInterfaces />)} />
+          <Route path="/network/static-routes" element={adminOnly(<StaticRoutes />)} />
+          <Route path="/network/ipmi" element={adminOnly(<IPMI />)} />
+          <Route path="/logs" element={adminOnly(<Logs />)} />
+          <Route path="/alerts" element={adminOnly(<Alerts />)} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>

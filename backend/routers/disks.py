@@ -4,7 +4,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 from backend.utils.zfs import get_boot_disk, get_pool_disk_roles
 
@@ -79,7 +79,7 @@ def disk_temperature(disk: str):
 
 
 @router.post("/{disk}/test/{test_type}")
-def start_smart_test(disk: str, test_type: str, username: str = Depends(get_current_user)):
+def start_smart_test(disk: str, test_type: str, username: str = Depends(get_current_admin)):
     if not disk.replace("-", "").replace("_", "").isalnum():
         raise HTTPException(status_code=400, detail="Invalid disk name")
     if test_type not in ("short", "long", "conveyance"):
@@ -159,7 +159,7 @@ def _parse_blkid_line(line: str, device: str) -> dict | None:
 
 
 @router.post("/{disk}/prepare")
-def prepare_disk(disk: str, username: str = Depends(get_current_user)):
+def prepare_disk(disk: str, username: str = Depends(get_current_admin)):
     """Wipe filesystem signatures and partition tables to prepare a disk for ZFS use."""
     if not disk.replace("-", "").replace("_", "").isalnum():
         raise HTTPException(status_code=400, detail="Invalid disk name")

@@ -1,13 +1,37 @@
 import logging
+import re
+import shlex
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 
 logger = logging.getLogger(__name__)
+
+VALID_DATASET = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_./:-]*$")
+VALID_HOSTNAME = re.compile(r"^[a-zA-Z0-9._-]+$")
+VALID_USERNAME = re.compile(r"^[a-zA-Z0-9._-]+$")
+VALID_SSH_KEY_PATH = re.compile(r"^[a-zA-Z0-9_./-]+$")
+
+
+def _validate_replication_fields(source_dataset: str | None, destination_dataset: str | None,
+                                  destination_host: str | None, destination_user: str | None,
+                                  destination_port: int | None, ssh_key_path: str | None):
+    if source_dataset is not None and not VALID_DATASET.match(source_dataset):
+        raise HTTPException(status_code=400, detail="Invalid source dataset name")
+    if destination_dataset is not None and not VALID_DATASET.match(destination_dataset):
+        raise HTTPException(status_code=400, detail="Invalid destination dataset name")
+    if destination_host is not None and not VALID_HOSTNAME.match(destination_host):
+        raise HTTPException(status_code=400, detail="Invalid destination hostname")
+    if destination_user is not None and not VALID_USERNAME.match(destination_user):
+        raise HTTPException(status_code=400, detail="Invalid destination username")
+    if destination_port is not None and not (1 <= destination_port <= 65535):
+        raise HTTPException(status_code=400, detail="Port must be between 1 and 65535")
+    if ssh_key_path is not None and ssh_key_path and not VALID_SSH_KEY_PATH.match(ssh_key_path):
+        raise HTTPException(status_code=400, detail="Invalid SSH key path")
 router = APIRouter(prefix="/replication", tags=["replication"], dependencies=[Depends(get_current_user)])
 
 
@@ -62,7 +86,10 @@ def get_replication_task(task_id: int):
 
 
 @router.post("")
-def create_replication_task(req: ReplicationCreate, username: str = Depends(get_current_user)):
+def create_replication_task(req: ReplicationCreate, username: str = Depends(get_current_admin)):
+    _validate_replication_fields(req.source_dataset, req.destination_dataset,
+                                  req.destination_host, req.destination_user,
+                                  req.destination_port, req.ssh_key_path)
     db = get_db()
     try:
         cursor = db.execute(
@@ -84,13 +111,19 @@ def create_replication_task(req: ReplicationCreate, username: str = Depends(get_
 
 
 @router.put("/{task_id}")
-def update_replication_task(task_id: int, req: ReplicationUpdate, username: str = Depends(get_current_user)):
+def update_replication_task(task_id: int, req: ReplicationUpdate, username: str = Depends(get_current_admin)):
+    _validate_replication_fields(req.source_dataset, req.destination_dataset,
+                                  req.destination_host, req.destination_user,
+                                  req.destination_port, req.ssh_key_path)
     db = get_db()
     try:
         existing = db.execute("SELECT * FROM zfs_replication_tasks WHERE id = ?", (task_id,)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Replication task not found")
 
+        ALLOWED_FIELDS = {"name", "source_dataset", "destination_host", "destination_port",
+                          "destination_user", "destination_dataset", "ssh_key_path", "schedule",
+                          "recursive", "incremental", "enabled"}
         updates = {}
         for field in ("name", "source_dataset", "destination_host", "destination_port",
                        "destination_user", "destination_dataset", "ssh_key_path", "schedule"):
@@ -102,6 +135,7 @@ def update_replication_task(task_id: int, req: ReplicationUpdate, username: str 
             if val is not None:
                 updates[field] = int(val)
 
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FIELDS}
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(f"UPDATE zfs_replication_tasks SET {set_clause} WHERE id = ?", (*updates.values(), task_id))
@@ -114,7 +148,7 @@ def update_replication_task(task_id: int, req: ReplicationUpdate, username: str 
 
 
 @router.delete("/{task_id}")
-def delete_replication_task(task_id: int, username: str = Depends(get_current_user)):
+def delete_replication_task(task_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         result = db.execute("DELETE FROM zfs_replication_tasks WHERE id = ?", (task_id,))
@@ -129,7 +163,7 @@ def delete_replication_task(task_id: int, username: str = Depends(get_current_us
 
 
 @router.post("/{task_id}/run")
-def run_replication_task(task_id: int, username: str = Depends(get_current_user)):
+def run_replication_task(task_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute("SELECT * FROM zfs_replication_tasks WHERE id = ?", (task_id,)).fetchone()
@@ -139,29 +173,35 @@ def run_replication_task(task_id: int, username: str = Depends(get_current_user)
     finally:
         db.close()
 
+    # Validate fields before building shell command
+    _validate_replication_fields(task["source_dataset"], task["destination_dataset"],
+                                  task["destination_host"], task["destination_user"],
+                                  task["destination_port"], task["ssh_key_path"])
+
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     snap_name = f"{task['source_dataset']}@repl-{timestamp}"
 
-    # Create snapshot
+    # Create snapshot (shlex.quote all user-supplied values)
     snap_cmd = "zfs snapshot"
     if task["recursive"]:
         snap_cmd += " -r"
-    snap_cmd += f" {snap_name}"
+    snap_cmd += f" {shlex.quote(snap_name)}"
 
     # Build send/receive pipe
     send_cmd = "zfs send"
     if task["recursive"]:
         send_cmd += " -R"
     if task["incremental"] and task["last_snapshot"]:
-        send_cmd += f" -i {task['last_snapshot']}"
-    send_cmd += f" {snap_name}"
+        send_cmd += f" -i {shlex.quote(task['last_snapshot'])}"
+    send_cmd += f" {shlex.quote(snap_name)}"
 
-    ssh_cmd = f"ssh -p {task['destination_port']}"
+    ssh_cmd = f"ssh -p {shlex.quote(str(task['destination_port']))}"
     if task["ssh_key_path"]:
-        ssh_cmd += f" -i {task['ssh_key_path']}"
-    ssh_cmd += f" {task['destination_user']}@{task['destination_host']}"
+        ssh_cmd += f" -i {shlex.quote(task['ssh_key_path'])}"
+    user_host = task['destination_user'] + '@' + task['destination_host']
+    ssh_cmd += f" {shlex.quote(user_host)}"
 
-    recv_cmd = f"zfs receive -F {task['destination_dataset']}"
+    recv_cmd = f"zfs receive -F {shlex.quote(task['destination_dataset'])}"
 
     full_cmd = f"{snap_cmd} && {send_cmd} | {ssh_cmd} {recv_cmd}"
 

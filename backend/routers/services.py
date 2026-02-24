@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ def service_detail(name: str):
 
 
 @router.post("/{name}/{action}")
-def service_action(name: str, action: str, username: str = Depends(get_current_user)):
+def service_action(name: str, action: str, username: str = Depends(get_current_admin)):
     if name not in MANAGED_SERVICES:
         raise HTTPException(status_code=404, detail=f"Service '{name}' is not managed")
     if action not in ("start", "stop", "restart", "enable", "disable"):

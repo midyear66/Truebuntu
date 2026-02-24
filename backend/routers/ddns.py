@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/ddns", tags=["ddns"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/ddns", tags=["ddns"], dependencies=[Depends(get_current_admin)])
 
 CONFIG_FILE = "/etc/ddclient.conf"
 
@@ -69,7 +69,7 @@ def get_config():
 
 
 @router.put("/config")
-def save_config(body: DDNSConfig, username: str = Depends(get_current_user)):
+def save_config(body: DDNSConfig, username: str = Depends(get_current_admin)):
     if not _is_installed():
         raise HTTPException(status_code=400, detail="ddclient is not installed")
 

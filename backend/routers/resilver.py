@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/resilver", tags=["resilver"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/resilver", tags=["resilver"], dependencies=[Depends(get_current_admin)])
 
 
 class ResilverUpdate(BaseModel):
@@ -48,7 +48,7 @@ def get_resilver_config():
 
 
 @router.put("")
-def update_resilver_config(req: ResilverUpdate, username: str = Depends(get_current_user)):
+def update_resilver_config(req: ResilverUpdate, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         db.execute(

@@ -4,11 +4,11 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/rclone", tags=["rclone"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/rclone", tags=["rclone"], dependencies=[Depends(get_current_admin)])
 
 RCLONE_CONFIG = "/data/rclone.conf"
 
@@ -42,7 +42,7 @@ def remote_detail(name: str):
 
 
 @router.post("/remotes")
-def create_remote(req: RemoteCreateRequest, username: str = Depends(get_current_user)):
+def create_remote(req: RemoteCreateRequest, username: str = Depends(get_current_admin)):
     cmd = [
         "rclone", "config", "create", req.name, req.type,
         "--config", RCLONE_CONFIG,
@@ -59,7 +59,7 @@ def create_remote(req: RemoteCreateRequest, username: str = Depends(get_current_
 
 
 @router.delete("/remotes/{name}")
-def delete_remote(name: str, username: str = Depends(get_current_user)):
+def delete_remote(name: str, username: str = Depends(get_current_admin)):
     result = run(["rclone", "config", "delete", name, "--config", RCLONE_CONFIG])
     if not result.ok:
         raise HTTPException(status_code=500, detail=result.stderr.strip())

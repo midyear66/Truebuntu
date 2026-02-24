@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.email import send_email
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/alerts", tags=["alerts"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/alerts", tags=["alerts"], dependencies=[Depends(get_current_admin)])
 
 
 class SmtpConfig(BaseModel):
@@ -44,7 +44,7 @@ def get_smtp_config():
 
 
 @router.put("/smtp")
-def save_smtp_config(req: SmtpConfig, username: str = Depends(get_current_user)):
+def save_smtp_config(req: SmtpConfig, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         settings = {
@@ -73,7 +73,7 @@ def save_smtp_config(req: SmtpConfig, username: str = Depends(get_current_user))
 
 
 @router.post("/test")
-def test_email(username: str = Depends(get_current_user)):
+def test_email(username: str = Depends(get_current_admin)):
     try:
         send_email(
             "Truebuntu Test Email",
@@ -104,7 +104,7 @@ def get_alert_settings():
 
 
 @router.put("/settings")
-def save_alert_settings(req: AlertCategories, username: str = Depends(get_current_user)):
+def save_alert_settings(req: AlertCategories, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         categories = {

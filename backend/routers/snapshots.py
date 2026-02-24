@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 from backend.utils.zfs import list_snapshots
 
@@ -53,7 +53,7 @@ def get_snapshots(dataset: str | None = None):
 
 
 @router.post("")
-def create_snapshot(req: SnapshotCreateRequest, username: str = Depends(get_current_user)):
+def create_snapshot(req: SnapshotCreateRequest, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(req.dataset):
         raise HTTPException(status_code=400, detail="Invalid dataset name")
 
@@ -74,7 +74,7 @@ def create_snapshot(req: SnapshotCreateRequest, username: str = Depends(get_curr
 
 
 @router.delete("/{snapshot:path}")
-def delete_snapshot(snapshot: str, username: str = Depends(get_current_user)):
+def delete_snapshot(snapshot: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(snapshot) or "@" not in snapshot:
         raise HTTPException(status_code=400, detail="Invalid snapshot name")
 
@@ -87,7 +87,7 @@ def delete_snapshot(snapshot: str, username: str = Depends(get_current_user)):
 
 
 @router.post("/{snapshot:path}/rollback")
-def rollback_snapshot(snapshot: str, username: str = Depends(get_current_user)):
+def rollback_snapshot(snapshot: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(snapshot) or "@" not in snapshot:
         raise HTTPException(status_code=400, detail="Invalid snapshot name")
 
@@ -113,7 +113,7 @@ def rollback_snapshot(snapshot: str, username: str = Depends(get_current_user)):
 
 
 @router.post("/{snapshot:path}/clone")
-def clone_snapshot(snapshot: str, target: str = "", username: str = Depends(get_current_user)):
+def clone_snapshot(snapshot: str, target: str = "", username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(snapshot) or "@" not in snapshot:
         raise HTTPException(status_code=400, detail="Invalid snapshot name")
     if not target or not VALID_NAME.match(target):
@@ -158,7 +158,7 @@ def get_policy(policy_id: int):
 
 
 @policies_router.post("")
-def create_policy(req: SnapshotPolicyCreate, username: str = Depends(get_current_user)):
+def create_policy(req: SnapshotPolicyCreate, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         cursor = db.execute(
@@ -182,13 +182,15 @@ def create_policy(req: SnapshotPolicyCreate, username: str = Depends(get_current
 
 
 @policies_router.put("/{policy_id}")
-def update_policy(policy_id: int, req: SnapshotPolicyUpdate, username: str = Depends(get_current_user)):
+def update_policy(policy_id: int, req: SnapshotPolicyUpdate, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         existing = db.execute("SELECT * FROM snapshot_policies WHERE id = ?", (policy_id,)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Policy not found")
 
+        ALLOWED_FIELDS = {"name", "dataset", "schedule", "retention_count", "retention_unit",
+                          "naming_schema", "enabled", "recursive", "exclude"}
         updates = {}
         for field in ["name", "dataset", "schedule", "retention_count", "retention_unit", "naming_schema", "enabled"]:
             val = getattr(req, field, None)
@@ -199,6 +201,7 @@ def update_policy(policy_id: int, req: SnapshotPolicyUpdate, username: str = Dep
         if req.exclude is not None:
             updates["exclude"] = json.dumps(req.exclude)
 
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FIELDS}
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(
@@ -214,7 +217,7 @@ def update_policy(policy_id: int, req: SnapshotPolicyUpdate, username: str = Dep
 
 
 @policies_router.delete("/{policy_id}")
-def delete_policy(policy_id: int, username: str = Depends(get_current_user)):
+def delete_policy(policy_id: int, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         result = db.execute("DELETE FROM snapshot_policies WHERE id = ?", (policy_id,))

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from backend.database import get_db
 from backend.utils.auth import (
-    get_current_user,
+    get_current_admin,
     create_pending_2fa_token,
     decode_pending_2fa_token,
     create_token,
@@ -34,7 +34,7 @@ class DisableRequest(BaseModel):
 
 
 @router.get("/status")
-def get_2fa_status(username: str = Depends(get_current_user)):
+def get_2fa_status(username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute(
@@ -48,16 +48,19 @@ def get_2fa_status(username: str = Depends(get_current_user)):
 
 
 @router.post("/setup")
-def setup_2fa(username: str = Depends(get_current_user)):
+def setup_2fa(username: str = Depends(get_current_admin)):
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
     uri = totp.provisioning_uri(name=username, issuer_name="Truebuntu")
 
-    # Generate QR code as SVG string
-    img = qrcode.make(uri, image_factory=qrcode.image.svg.SvgImage)
+    # Generate QR code as SVG string (PathFill includes white background)
+    img = qrcode.make(uri, image_factory=qrcode.image.svg.SvgPathFillImage)
     buf = io.BytesIO()
     img.save(buf)
     qr_svg = buf.getvalue().decode("utf-8")
+    # Strip XML declaration — not needed for inline HTML and can break dangerouslySetInnerHTML
+    if qr_svg.startswith("<?xml"):
+        qr_svg = qr_svg.split("?>", 1)[-1].strip()
 
     # Store secret (not yet enabled)
     db = get_db()
@@ -74,7 +77,7 @@ def setup_2fa(username: str = Depends(get_current_user)):
 
 
 @router.post("/enable")
-def enable_2fa(body: VerifyCode, username: str = Depends(get_current_user)):
+def enable_2fa(body: VerifyCode, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute(
@@ -98,7 +101,7 @@ def enable_2fa(body: VerifyCode, username: str = Depends(get_current_user)):
 
 
 @router.post("/disable")
-def disable_2fa(body: DisableRequest, username: str = Depends(get_current_user)):
+def disable_2fa(body: DisableRequest, username: str = Depends(get_current_admin)):
     db = get_db()
     try:
         row = db.execute(
@@ -132,7 +135,7 @@ def verify_2fa_login(body: Verify2FALogin, response: Response):
     db = get_db()
     try:
         row = db.execute(
-            "SELECT totp_secret FROM users WHERE username = ?", (username,)
+            "SELECT totp_secret, is_admin FROM users WHERE username = ?", (username,)
         ).fetchone()
     finally:
         db.close()
@@ -154,4 +157,4 @@ def verify_2fa_login(body: Verify2FALogin, response: Response):
         path="/",
     )
     logger.info(f"User '{username}' completed 2FA login")
-    return {"message": "Logged in", "username": username}
+    return {"message": "Logged in", "username": username, "is_admin": bool(row["is_admin"])}

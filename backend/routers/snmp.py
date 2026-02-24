@@ -5,11 +5,11 @@ from pydantic import BaseModel
 from typing import Optional
 import subprocess
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/snmp", tags=["snmp"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/snmp", tags=["snmp"], dependencies=[Depends(get_current_admin)])
 
 CONFIG_FILE = "/etc/snmp/snmpd.conf"
 
@@ -80,7 +80,7 @@ def get_config():
 
 
 @router.put("/config")
-def save_config(body: SNMPConfig, username: str = Depends(get_current_user)):
+def save_config(body: SNMPConfig, username: str = Depends(get_current_admin)):
     if not _is_installed():
         raise HTTPException(status_code=400, detail="snmpd is not installed")
 

@@ -3,12 +3,12 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 from backend.utils.zfs import get_pool_disk_roles, _format_bytes
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/enclosure", tags=["enclosure"])
+router = APIRouter(prefix="/enclosure", tags=["enclosure"], dependencies=[Depends(get_current_admin)])
 
 
 def _get_smart_info(device: str) -> dict:
@@ -32,7 +32,7 @@ def _get_smart_info(device: str) -> dict:
 
 
 @router.get("")
-def get_enclosure(username: str = Depends(get_current_user)):
+def get_enclosure(username: str = Depends(get_current_admin)):
     # Get all physical disks
     result = run([
         "lsblk", "-J", "-d", "-b",

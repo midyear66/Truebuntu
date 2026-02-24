@@ -8,11 +8,11 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/network", tags=["network"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/network", tags=["network"], dependencies=[Depends(get_current_admin)])
 
 NETPLAN_FILE = "/etc/netplan/99-truebuntu.yaml"
 IFACE_RE = re.compile(r"^[a-zA-Z0-9._-]+$")

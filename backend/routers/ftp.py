@@ -5,11 +5,11 @@ from pydantic import BaseModel
 from typing import Optional
 import subprocess
 
-from backend.utils.auth import get_current_user
+from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/ftp", tags=["ftp"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/ftp", tags=["ftp"], dependencies=[Depends(get_current_admin)])
 
 CONFIG_FILE = "/etc/vsftpd.conf"
 
@@ -87,7 +87,7 @@ def get_config():
 
 
 @router.put("/config")
-def save_config(body: FTPConfig, username: str = Depends(get_current_user)):
+def save_config(body: FTPConfig, username: str = Depends(get_current_admin)):
     if not _is_installed():
         raise HTTPException(status_code=400, detail="vsftpd is not installed")
 
