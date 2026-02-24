@@ -36,8 +36,8 @@
         font-family="Segoe UI, Ubuntu, sans-serif"
         font-size="104"
         font-weight="600"
-        fill="#E5E7EB">
-    True<tspan fill="#1CA7EC">buntu</tspan>
+        fill="#1CA7EC">
+    True<tspan fill="#E5E7EB">buntu</tspan>
   </text>
 
 </svg>

@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="frontend/src/assets/logo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="frontend/src/assets/logo.svg">
-    <img alt="Truebuntu" src="frontend/src/assets/logo.svg" width="400">
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/src/assets/logo-tagline-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="frontend/src/assets/logo-tagline.svg">
+    <img alt="Truebuntu — Lightweight NAS OS • Enterprise Stability" src="frontend/src/assets/logo-tagline.svg" width="500">
   </picture>
 </p>
 
