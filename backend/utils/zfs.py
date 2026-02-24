@@ -355,8 +355,8 @@ def list_available_disks() -> list[dict]:
     pool_roles = get_pool_disk_roles()
     used_disks = set()
     for roles in pool_roles.values():
-        # Exclude data, log, and cache disks — but NOT spares
         used_disks.update(roles.get("data", []))
+        used_disks.update(roles.get("spare", []))
         used_disks.update(roles.get("log", []))
         used_disks.update(roles.get("cache", []))
 

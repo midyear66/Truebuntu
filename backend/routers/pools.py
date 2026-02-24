@@ -37,6 +37,17 @@ class PoolDestroyRequest(BaseModel):
     confirm: str
 
 
+class PoolImportRequest(BaseModel):
+    name: str
+    force: bool = False
+
+
+class DiskAttachRequest(BaseModel):
+    existing_disk: str
+    new_disk: str
+    force: bool = False
+
+
 class DiskReplaceRequest(BaseModel):
     old_disk: str
     new_disk: str
@@ -44,6 +55,57 @@ class DiskReplaceRequest(BaseModel):
 
 
 VALID_DISK = re.compile(r"^[a-zA-Z0-9_.\-]+$")
+
+
+def _parse_zpool_import(output: str) -> list[dict]:
+    """Parse ``zpool import`` text output into a list of importable pools."""
+    pools: list[dict] = []
+    current: dict | None = None
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("pool:"):
+            if current:
+                pools.append(current)
+            current = {"name": stripped.split(":", 1)[1].strip(), "id": "", "state": "", "status": ""}
+        elif current is not None:
+            if stripped.startswith("id:"):
+                current["id"] = stripped.split(":", 1)[1].strip()
+            elif stripped.startswith("state:"):
+                current["state"] = stripped.split(":", 1)[1].strip()
+            elif stripped.startswith("status:"):
+                current["status"] = stripped.split(":", 1)[1].strip()
+    if current:
+        pools.append(current)
+    return pools
+
+
+@router.get("/importable")
+def list_importable_pools():
+    result = run(NSENTER + ["zpool", "import"], timeout=30)
+    if not result.ok:
+        # "no pools available to import" returns rc=1
+        if "no pools" in result.stderr.lower():
+            return []
+        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    return _parse_zpool_import(result.stdout)
+
+
+@router.post("/import")
+def import_pool(req: PoolImportRequest, username: str = Depends(get_current_user)):
+    if not VALID_NAME.match(req.name):
+        raise HTTPException(status_code=400, detail="Invalid pool name")
+
+    cmd = NSENTER + ["zpool", "import"]
+    if req.force:
+        cmd.append("-f")
+    cmd.append(req.name)
+
+    result = run(cmd, timeout=120)
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=result.stderr.strip())
+
+    logger.info(f"User '{username}' imported pool '{req.name}' (force={req.force})")
+    return {"message": f"Pool '{req.name}' imported", "pool": req.name}
 
 
 @router.get("")
@@ -224,6 +286,36 @@ def online_disk(pool: str, disk: str, username: str = Depends(get_current_user))
     return {"message": f"Disk {disk} brought online"}
 
 
+@router.post("/{pool}/attach")
+def attach_disk(pool: str, req: DiskAttachRequest, username: str = Depends(get_current_user)):
+    if not VALID_NAME.match(pool):
+        raise HTTPException(status_code=400, detail="Invalid pool name")
+    if not VALID_DISK.match(req.existing_disk) or not VALID_DISK.match(req.new_disk):
+        raise HTTPException(status_code=400, detail="Invalid disk name")
+
+    # Prepare the new disk
+    wipe = run(NSENTER + ["wipefs", "--all", "--force", f"/dev/{req.new_disk}"])
+    if not wipe.ok:
+        raise HTTPException(status_code=500, detail=f"Failed to wipe new disk: {wipe.stderr.strip()}")
+    zap = run(NSENTER + ["sgdisk", "--zap-all", f"/dev/{req.new_disk}"])
+    if not zap.ok:
+        raise HTTPException(status_code=500, detail=f"Failed to zap new disk: {zap.stderr.strip()}")
+    run(NSENTER + ["blockdev", "--rereadpt", f"/dev/{req.new_disk}"])
+    logger.info(f"Prepared disk {req.new_disk} for attach (wiped signatures and partition tables)")
+
+    cmd = NSENTER + ["zpool", "attach"]
+    if req.force:
+        cmd.append("-f")
+    cmd.extend([pool, req.existing_disk, req.new_disk])
+
+    result = run(cmd, timeout=60)
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=result.stderr.strip())
+
+    logger.info(f"User '{username}' attached disk {req.new_disk} to {req.existing_disk} in pool '{pool}'")
+    return {"message": f"Disk {req.new_disk} attached to {req.existing_disk} (mirroring)"}
+
+
 @router.post("/{pool}/disk/{disk}/detach")
 def detach_disk(pool: str, disk: str, username: str = Depends(get_current_user)):
     if not VALID_NAME.match(pool):
@@ -237,6 +329,36 @@ def detach_disk(pool: str, disk: str, username: str = Depends(get_current_user))
 
     logger.info(f"User '{username}' detached disk {disk} from pool '{pool}'")
     return {"message": f"Disk {disk} detached from pool"}
+
+
+@router.post("/{pool}/spare")
+def add_spare(pool: str, disk: str, username: str = Depends(get_current_user)):
+    if not VALID_NAME.match(pool):
+        raise HTTPException(status_code=400, detail="Invalid pool name")
+    if not VALID_DISK.match(disk):
+        raise HTTPException(status_code=400, detail="Invalid disk name")
+
+    result = run(NSENTER + ["zpool", "add", pool, "spare", disk], timeout=30)
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=result.stderr.strip())
+
+    logger.info(f"User '{username}' added spare {disk} to pool '{pool}'")
+    return {"message": f"Disk {disk} added as spare to pool '{pool}'"}
+
+
+@router.delete("/{pool}/spare/{disk}")
+def remove_spare(pool: str, disk: str, username: str = Depends(get_current_user)):
+    if not VALID_NAME.match(pool):
+        raise HTTPException(status_code=400, detail="Invalid pool name")
+    if not VALID_DISK.match(disk):
+        raise HTTPException(status_code=400, detail="Invalid disk name")
+
+    result = run(NSENTER + ["zpool", "remove", pool, disk], timeout=30)
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=result.stderr.strip())
+
+    logger.info(f"User '{username}' removed spare {disk} from pool '{pool}'")
+    return {"message": f"Spare {disk} removed from pool '{pool}'"}
 
 
 disks_router = APIRouter(prefix="/disks", tags=["disks"], dependencies=[Depends(get_current_user)])
