@@ -107,6 +107,100 @@ This project targets the TrueNAS Mini running Ubuntu:
 
 Other TrueNAS Mini variants (X+, XL+, R) and similar low-power x86_64 NAS hardware should also work -- install Ubuntu Server, import your existing ZFS pools, and run Truebuntu.
 
+<details>
+<summary>Installing Ubuntu on a TrueNAS Mini</summary>
+
+#### What You Need
+
+- USB flash drive (2 GB+) for the Ubuntu installer
+- USB keyboard (the Mini has no PS/2 ports)
+- Monitor with VGA or HDMI cable (depends on model), or IPMI access (Mini R and some X+ models)
+- A separate boot device -- the Mini's internal 16 GB USB DOM (Disk on Module) works, or replace it with a small SATA SSD in one of the drive bays
+
+#### 1. Back Up Your TrueNAS Configuration
+
+Before wiping TrueNAS, export your config and note your ZFS pool layout:
+
+```bash
+# On TrueNAS (via Shell or SSH)
+zpool status
+zpool list
+zfs list
+```
+
+Save the output -- you'll use it to verify pool imports after Ubuntu is running.
+
+#### 2. Create a Bootable USB Installer
+
+Download [Ubuntu Server 22.04 LTS](https://ubuntu.com/download/server) (or 24.04 LTS) and flash it to a USB drive:
+
+```bash
+# On any Linux/macOS machine
+sudo dd if=ubuntu-22.04-live-server-amd64.iso of=/dev/sdX bs=4M status=progress
+```
+
+Or use [Rufus](https://rufus.ie/) (Windows) / [balenaEtcher](https://etcher.balena.io/) (any OS).
+
+#### 3. Boot from USB
+
+1. Plug the USB installer and keyboard into the Mini
+2. Power on and press **Delete** or **F2** to enter BIOS/UEFI setup
+3. Set the boot order to boot from USB first
+4. Save and exit -- the Ubuntu installer should start
+
+> **IPMI users (Mini R):** You can mount the ISO as virtual media through the IPMI web console and install remotely without a physical keyboard/monitor.
+
+#### 4. Install Ubuntu Server
+
+Follow the standard Ubuntu Server installer with these considerations:
+
+- **Install target:** Select the internal USB DOM or a dedicated boot SSD -- **do not** install onto your ZFS data disks
+- **Storage layout:** Choose "Custom storage layout" and use the entire boot device as ext4 mounted at `/`. A 16-32 GB device is sufficient
+- **Do not format your data disks** -- the installer should leave unselected disks alone, but double-check before confirming
+- **Network:** Configure the primary Ethernet interface with DHCP or a static IP
+- **OpenSSH:** Enable the OpenSSH server when prompted -- you'll want remote access
+- **Minimal install:** Skip optional snaps; the Truebuntu install script handles all dependencies
+
+#### 5. Post-Install Setup
+
+After rebooting into Ubuntu:
+
+```bash
+# Install ZFS support
+sudo apt update
+sudo apt install -y zfsutils-linux
+
+# Import your existing ZFS pools
+sudo zpool import
+sudo zpool import <pool-name>
+
+# Verify pools are healthy
+sudo zpool status
+```
+
+If `zpool import` doesn't find your pools, try scanning specific disks:
+
+```bash
+sudo zpool import -d /dev/disk/by-id
+```
+
+#### 6. Install Truebuntu
+
+Once your pools are imported and healthy, run the one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/midyear66/Truebuntu/main/install.sh | sudo bash
+```
+
+#### BIOS Tips for the TrueNAS Mini
+
+- **Boot mode:** The Mini uses legacy BIOS by default. Ubuntu Server works fine in legacy mode -- no need to switch to UEFI
+- **Wake-on-LAN:** Enable in BIOS if you want remote power-on capability
+- **Power recovery:** Set "Restore on AC Power Loss" to **Power On** so the Mini starts automatically after a power outage
+- **Fan control:** The Mini's fans are controlled by the SuperMicro BMC; Ubuntu does not need to manage them
+
+</details>
+
 ### Notes
 
 - **ZFS memory rule of thumb:** allocate ~1 GB of RAM per TB of raw storage for the ARC read cache. 8 GB is adequate for up to ~4 TB; 16 GB covers most home setups.
