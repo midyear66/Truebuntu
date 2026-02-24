@@ -19,7 +19,7 @@ const DEFAULT_FORM = {
   name: '',
   sync: 'standard',
   compression: 'lz4',
-  atime: 'on',
+  atime: 'off',
   dedup: 'off',
   readonly: 'off',
   exec: 'on',
