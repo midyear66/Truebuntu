@@ -209,11 +209,11 @@ function SystemInfoCard({ system }) {
   return (
     <Card icon={<IconServer />}>
       <CardTitle>System Information</CardTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+      <div className="space-y-1">
         {rows.map(([label, value]) => (
-          <div key={label} className="flex justify-between py-1 border-b dark:border-gray-700 last:border-0">
-            <span className="text-sm text-gray-500 dark:text-gray-400">{label}</span>
-            <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{value || 'unknown'}</span>
+          <div key={label} className="py-0.5 border-b dark:border-gray-700 last:border-0">
+            <div className="text-xs text-gray-400 dark:text-gray-500 leading-tight">{label}</div>
+            <div className="text-xs font-medium text-gray-800 dark:text-gray-100 truncate" title={value || 'unknown'}>{value || 'unknown'}</div>
           </div>
         ))}
       </div>
