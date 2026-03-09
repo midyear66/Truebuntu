@@ -6,6 +6,8 @@
   </picture>
 </p>
 
+> **WARNING: This project is under active development and is NOT production-ready.** Expect breaking changes, bugs, missing features, and potential data loss. Use entirely at your own risk. This software manages storage, networking, and system services — mistakes can and will result in downtime, misconfiguration, or destroyed data. Do not run this on systems you cannot afford to lose. You have been warned.
+
 A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage servers. Built as a modern replacement for the aging TrueNAS Core (FreeBSD) on compact hardware like the [TrueNAS Mini](https://www.truenas.com/truenas-mini/) — run a full-featured storage OS on Ubuntu with a single Docker container instead of a dedicated appliance OS.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
