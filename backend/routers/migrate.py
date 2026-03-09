@@ -12,13 +12,14 @@ from backend.database import get_db
 from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 from backend.utils.smb_conf import add_share, parse_smb_conf
+from backend.utils.zfs import get_pool_mountpoints
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/migrate", tags=["migrate"], dependencies=[Depends(get_current_admin)])
 
 VALID_USERNAME = re.compile(r"^[a-z_][a-z0-9_-]*$")
 VALID_SHARE_NAME = re.compile(r"^[a-zA-Z0-9_. -]+$")
-ALLOWED_PATHS = ("/mnt/", "/data/", "/pool/", "/tank/")
+STATIC_PATH_PREFIXES = ("/mnt/", "/data/", "/pool/", "/tank/")
 
 
 @router.post("/truenas")
@@ -143,7 +144,12 @@ async def apply_truenas_config(
                 errors.append(f"Skipped share '{name}': invalid name")
                 skipped += 1
                 continue
-            if not path or not any(path.startswith(p) for p in ALLOWED_PATHS):
+            pool_mounts = get_pool_mountpoints()
+            path_valid = (
+                any(path.startswith(p) for p in STATIC_PATH_PREFIXES)
+                or any(path.startswith(m) for m in pool_mounts)
+            )
+            if not path or not path_valid:
                 errors.append(f"Skipped share '{name}': invalid path '{path}'")
                 skipped += 1
                 continue
