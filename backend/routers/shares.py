@@ -7,11 +7,19 @@ from pydantic import BaseModel
 from backend.utils.auth import get_current_user, get_current_admin
 from backend.utils.shell import run
 from backend.utils.smb_conf import get_shares, add_share, update_share, remove_share
+from backend.utils.zfs import get_pool_mountpoints
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/shares", tags=["shares"], dependencies=[Depends(get_current_user)])
 
-ALLOWED_PATH_PREFIXES = ("/mnt/", "/data/", "/pool/", "/tank/")
+STATIC_PATH_PREFIXES = ("/mnt/", "/data/", "/pool/", "/tank/")
+
+
+def _is_valid_share_path(path: str) -> bool:
+    if path.startswith(STATIC_PATH_PREFIXES):
+        return True
+    pool_mounts = get_pool_mountpoints()
+    return any(path.startswith(m) for m in pool_mounts)
 VALID_OWNER = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 
@@ -71,8 +79,8 @@ def list_shares():
 
 @router.post("")
 def create_share(req: ShareCreateRequest, username: str = Depends(get_current_admin)):
-    if req.path and not req.path.startswith(ALLOWED_PATH_PREFIXES):
-        raise HTTPException(status_code=400, detail="Path must start with /mnt/, /data/, /pool/, or /tank/")
+    if req.path and not _is_valid_share_path(req.path):
+        raise HTTPException(status_code=400, detail="Path must be under a known ZFS mountpoint or /mnt/, /data/, /pool/, /tank/")
 
     existing = [s["name"] for s in get_shares()]
     if req.name in existing:

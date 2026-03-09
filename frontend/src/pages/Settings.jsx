@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Settings() {
   const [tab, setTab] = useState('general')
@@ -25,6 +26,10 @@ export default function Settings() {
   const [migLoading, setMigLoading] = useState(false)
   const [migApplying, setMigApplying] = useState(false)
   const [migResult, setMigResult] = useState(null)
+  const [migErrors, setMigErrors] = useState([])
+  const [userPasswords, setUserPasswords] = useState({})
+  const [importUsers, setImportUsers] = useState(true)
+  const [importSmbShares, setImportSmbShares] = useState(true)
   const [error, setError] = useState('')
 
   // Config state
@@ -35,6 +40,10 @@ export default function Settings() {
   // Audit state
   const [auditLog, setAuditLog] = useState(null)
   const [auditLoading, setAuditLoading] = useState(false)
+
+  // Power state
+  const [powerConfirm, setPowerConfirm] = useState(null) // 'reboot' or 'shutdown'
+  const [powerMsg, setPowerMsg] = useState('')
 
   // 2FA state
   const [tfaEnabled, setTfaEnabled] = useState(false)
@@ -135,11 +144,16 @@ export default function Settings() {
     if (!migFile) return
     setMigApplying(true)
     setError('')
+    setMigErrors([])
     try {
       const form = new FormData()
       form.append('file', migFile)
+      form.append('user_passwords', JSON.stringify(userPasswords))
+      form.append('import_users', importUsers)
+      form.append('import_smb_shares', importSmbShares)
       const res = await api.post('/migrate/truenas/apply', form)
       setMigResult(res.data)
+      if (res.data.errors?.length) setMigErrors(res.data.errors)
       setPreview(null)
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to apply migration')
@@ -242,6 +256,18 @@ export default function Settings() {
     }
   }
 
+  const handlePower = async (action) => {
+    setPowerConfirm(null)
+    setPowerMsg('')
+    setError('')
+    try {
+      await api.post(`/system/${action}`)
+      setPowerMsg(action === 'reboot' ? 'Reboot initiated — the system will be unavailable shortly.' : 'Shutdown initiated — the system will power off shortly.')
+    } catch (err) {
+      setError(err.response?.data?.detail || `Failed to ${action}`)
+    }
+  }
+
   const tabLabels = {
     general: 'General',
     ntp: 'NTP Servers',
@@ -277,44 +303,79 @@ export default function Settings() {
 
       {/* General */}
       {tab === 'general' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-          <h3 className="text-lg font-semibold mb-4">General Settings</h3>
-          {generalLoading ? (
-            <div className="text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
-          ) : (
-            <div className="space-y-4 max-w-lg">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Hostname</label>
-                <input
-                  type="text"
-                  value={hostname}
-                  onChange={e => setHostname(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Timezone</label>
-                <select
-                  value={timezone}
-                  onChange={e => setTimezone(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+            <h3 className="text-lg font-semibold mb-4">General Settings</h3>
+            {generalLoading ? (
+              <div className="text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
+            ) : (
+              <div className="space-y-4 max-w-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Hostname</label>
+                  <input
+                    type="text"
+                    value={hostname}
+                    onChange={e => setHostname(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Timezone</label>
+                  <select
+                    value={timezone}
+                    onChange={e => setTimezone(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {timezones.map(tz => (
+                      <option key={tz} value={tz}>{tz}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={saveGeneral}
+                  disabled={generalSaving}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {timezones.map(tz => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))}
-                </select>
+                  {generalSaving ? 'Saving...' : 'Save'}
+                </button>
+                {generalMsg && <div className="text-sm text-green-600">{generalMsg}</div>}
               </div>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+            <h3 className="text-lg font-semibold mb-2">Power</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Reboot or shut down the host system. All connections will be lost.</p>
+            <div className="flex gap-3">
               <button
-                onClick={saveGeneral}
-                disabled={generalSaving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                onClick={() => setPowerConfirm('reboot')}
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded hover:bg-amber-700"
               >
-                {generalSaving ? 'Saving...' : 'Save'}
+                Reboot
               </button>
-              {generalMsg && <div className="text-sm text-green-600">{generalMsg}</div>}
+              <button
+                onClick={() => setPowerConfirm('shutdown')}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Shut Down
+              </button>
             </div>
-          )}
+            {powerMsg && <div className="mt-3 text-sm text-amber-600 dark:text-amber-400">{powerMsg}</div>}
+          </div>
         </div>
+      )}
+
+      {powerConfirm && (
+        <ConfirmDialog
+          title={powerConfirm === 'reboot' ? 'Reboot System' : 'Shut Down System'}
+          message={powerConfirm === 'reboot'
+            ? 'Are you sure you want to reboot? All active connections and services will be interrupted.'
+            : 'Are you sure you want to shut down? The system will power off and must be physically turned back on.'}
+          confirmText={powerConfirm === 'reboot' ? 'Reboot' : 'Shut Down'}
+          danger={true}
+          onConfirm={() => handlePower(powerConfirm)}
+          onCancel={() => setPowerConfirm(null)}
+        />
       )}
 
       {/* NTP */}
@@ -423,7 +484,22 @@ export default function Settings() {
 
             {migResult && (
               <div className="p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 rounded text-sm">
-                Migration applied successfully! Imported: {JSON.stringify(migResult.imported)}
+                <p className="font-medium mb-1">Migration applied successfully!</p>
+                <ul className="list-disc list-inside">
+                  {migResult.imported?.users != null && <li>Users created: {migResult.imported.users}{migResult.imported.users_skipped ? ` (${migResult.imported.users_skipped} skipped)` : ''}</li>}
+                  {migResult.imported?.smb_shares != null && <li>SMB shares created: {migResult.imported.smb_shares}{migResult.imported.smb_shares_skipped ? ` (${migResult.imported.smb_shares_skipped} skipped)` : ''}</li>}
+                  {migResult.imported?.snapshot_policies != null && <li>Snapshot policies: {migResult.imported.snapshot_policies}</li>}
+                  {migResult.imported?.scrub_tasks != null && <li>Scrub tasks: {migResult.imported.scrub_tasks}</li>}
+                  {migResult.imported?.cloud_sync_tasks != null && <li>Cloud sync tasks: {migResult.imported.cloud_sync_tasks}</li>}
+                </ul>
+              </div>
+            )}
+            {migErrors.length > 0 && (
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400 rounded text-sm mt-2">
+                <p className="font-medium mb-1">Warnings:</p>
+                <ul className="list-disc list-inside">
+                  {migErrors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
               </div>
             )}
           </div>
@@ -432,20 +508,49 @@ export default function Settings() {
             <div className="space-y-4">
               {/* Users */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
-                  Users ({preview.users?.length || 0})
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    Users ({(preview.users || []).filter(u => u.uid >= 1000).length})
+                  </h4>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                    <input type="checkbox" checked={importUsers} onChange={e => setImportUsers(e.target.checked)} />
+                    Import users
+                  </label>
+                </div>
+                {importUsers && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Set a password for each user to create their system and SMB accounts. Users without a password will be created with a locked account.
+                  </p>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-                      <th className="pb-2 pr-4">Username</th><th className="pb-2 pr-4">UID</th><th className="pb-2">GID</th>
+                      <th className="pb-2 pr-4">Username</th><th className="pb-2 pr-4">UID</th><th className="pb-2 pr-4">GID</th>
+                      <th className="pb-2 pr-4">Full Name</th>
+                      <th className="pb-2 pr-4">SMB</th>
+                      <th className="pb-2 pr-4">Groups</th>
+                      {importUsers && <th className="pb-2">Password</th>}
                     </tr></thead>
                     <tbody>
-                      {(preview.users || []).filter(u => u.uid >= 1000 || [972].includes(u.uid)).map(u => (
+                      {(preview.users || []).filter(u => !u.builtin && u.uid >= 1000).map(u => (
                         <tr key={u.username} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-medium">{u.username}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{u.uid}</td>
-                          <td className="py-1 font-mono text-xs">{u.gid}</td>
+                          <td className="py-1 pr-4 font-mono text-xs">{u.gid}</td>
+                          <td className="py-1 pr-4 text-xs text-gray-500 dark:text-gray-400">{u.full_name || '-'}</td>
+                          <td className="py-1 pr-4 text-xs">{u.has_smb ? 'Yes' : '-'}</td>
+                          <td className="py-1 pr-4 text-xs text-gray-500 dark:text-gray-400">{(u.groups || []).join(', ') || '-'}</td>
+                          {importUsers && (
+                            <td className="py-1">
+                              <input
+                                type="password"
+                                placeholder="Set password (min 8)"
+                                value={userPasswords[u.username] || ''}
+                                onChange={e => setUserPasswords(prev => ({...prev, [u.username]: e.target.value}))}
+                                className="border dark:border-gray-600 rounded px-2 py-1 text-xs w-40 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                              />
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -455,20 +560,32 @@ export default function Settings() {
 
               {/* SMB Shares */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
-                  SMB Shares ({preview.smb_shares?.length || 0})
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    SMB Shares ({preview.smb_shares?.length || 0})
+                  </h4>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                    <input type="checkbox" checked={importSmbShares} onChange={e => setImportSmbShares(e.target.checked)} />
+                    Import SMB shares
+                  </label>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-                      <th className="pb-2 pr-4">Name</th><th className="pb-2 pr-4">Path</th><th className="pb-2">Comment</th>
+                      <th className="pb-2 pr-4">Name</th><th className="pb-2 pr-4">Path</th><th className="pb-2 pr-4">Comment</th>
+                      <th className="pb-2 pr-4">Read Only</th><th className="pb-2 pr-4">Guest</th><th className="pb-2">Options</th>
                     </tr></thead>
                     <tbody>
                       {(preview.smb_shares || []).map(s => (
                         <tr key={s.name} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-medium">{s.name}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{s.path}</td>
-                          <td className="py-1 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>
+                          <td className="py-1 pr-4 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>
+                          <td className="py-1 pr-4 text-xs">{s.read_only ? 'Yes' : 'No'}</td>
+                          <td className="py-1 pr-4 text-xs">{s.guest_ok ? 'Yes' : 'No'}</td>
+                          <td className="py-1 text-xs text-gray-500 dark:text-gray-400">
+                            {[s.recycle_bin && 'Recycle', s.time_machine && 'TimeMachine'].filter(Boolean).join(', ') || '-'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

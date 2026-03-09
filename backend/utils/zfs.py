@@ -3,6 +3,19 @@ import re
 from backend.utils.shell import run
 
 
+def get_pool_mountpoints() -> set[str]:
+    """Return root mountpoints of all imported ZFS pools (with trailing slash)."""
+    result = run(["zfs", "list", "-H", "-o", "mountpoint", "-d", "0"])
+    if not result.ok:
+        return set()
+    mounts = set()
+    for line in result.stdout.strip().splitlines():
+        mp = line.strip()
+        if mp and mp != "-" and mp != "none":
+            mounts.add(mp if mp.endswith("/") else mp + "/")
+    return mounts
+
+
 def parse_zpool_list() -> list[dict]:
     result = run(["zpool", "list", "-H", "-o", "name,size,alloc,free,frag,cap,health"])
     if not result.ok:

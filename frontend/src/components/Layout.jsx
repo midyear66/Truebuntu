@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useTheme } from '../ThemeContext'
+import ConfirmDialog from './ConfirmDialog'
 import logo from '../assets/logo.svg'
 import logoDark from '../assets/logo-dark.svg'
 
@@ -88,6 +89,21 @@ export default function Layout({ children, user, isAdmin }) {
     window.dispatchEvent(new Event('poll-interval-changed'))
     setShowPollMenu(false)
   }
+  const [showPowerMenu, setShowPowerMenu] = useState(false)
+  const [powerConfirm, setPowerConfirm] = useState(null)
+  const [powerMsg, setPowerMsg] = useState('')
+
+  const handlePower = async (action) => {
+    setPowerConfirm(null)
+    setShowPowerMenu(false)
+    try {
+      await api.post(`/system/${action}`)
+      setPowerMsg(action === 'reboot' ? 'Reboot initiated...' : 'Shutdown initiated...')
+    } catch (err) {
+      setPowerMsg(err.response?.data?.detail || `Failed to ${action}`)
+    }
+  }
+
   const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm: '' })
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
@@ -191,11 +207,46 @@ export default function Layout({ children, user, isAdmin }) {
         </nav>
         <div className="p-4 border-t border-gray-300 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500 flex items-center justify-between">
           <span>v0.1.0</span>
-          <a href="https://github.com/midyear66/Truebuntu" target="_blank" rel="noopener noreferrer" title="GitHub" className="hover:text-gray-600 dark:hover:text-gray-300">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-          </a>
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowPowerMenu(!showPowerMenu)}
+                  title="Power"
+                  className="hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                    <line x1="12" y1="2" x2="12" y2="12" />
+                  </svg>
+                </button>
+                {showPowerMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowPowerMenu(false)} />
+                    <div className="absolute bottom-6 right-0 w-36 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-50">
+                      <button
+                        onClick={() => { setShowPowerMenu(false); setPowerConfirm('reboot') }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        Reboot
+                      </button>
+                      <button
+                        onClick={() => { setShowPowerMenu(false); setPowerConfirm('shutdown') }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      >
+                        Shut Down
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <a href="https://github.com/midyear66/Truebuntu" target="_blank" rel="noopener noreferrer" title="GitHub" className="hover:text-gray-600 dark:hover:text-gray-300">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+            </a>
+          </div>
         </div>
       </aside>
 
@@ -296,6 +347,25 @@ export default function Layout({ children, user, isAdmin }) {
               <button type="submit" className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Change</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {powerConfirm && (
+        <ConfirmDialog
+          title={powerConfirm === 'reboot' ? 'Reboot System' : 'Shut Down System'}
+          message={powerConfirm === 'reboot'
+            ? 'Are you sure you want to reboot? All active connections and services will be interrupted.'
+            : 'Are you sure you want to shut down? The system will power off and must be physically turned back on.'}
+          confirmText={powerConfirm === 'reboot' ? 'Reboot' : 'Shut Down'}
+          danger={true}
+          onConfirm={() => handlePower(powerConfirm)}
+          onCancel={() => setPowerConfirm(null)}
+        />
+      )}
+
+      {powerMsg && (
+        <div className="fixed bottom-4 right-4 bg-amber-600 text-white px-4 py-3 rounded-lg shadow-lg text-sm z-50">
+          {powerMsg}
         </div>
       )}
     </div>
