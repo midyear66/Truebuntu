@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Settings() {
   const [tab, setTab] = useState('general')
@@ -39,6 +40,10 @@ export default function Settings() {
   // Audit state
   const [auditLog, setAuditLog] = useState(null)
   const [auditLoading, setAuditLoading] = useState(false)
+
+  // Power state
+  const [powerConfirm, setPowerConfirm] = useState(null) // 'reboot' or 'shutdown'
+  const [powerMsg, setPowerMsg] = useState('')
 
   // 2FA state
   const [tfaEnabled, setTfaEnabled] = useState(false)
@@ -251,6 +256,18 @@ export default function Settings() {
     }
   }
 
+  const handlePower = async (action) => {
+    setPowerConfirm(null)
+    setPowerMsg('')
+    setError('')
+    try {
+      await api.post(`/system/${action}`)
+      setPowerMsg(action === 'reboot' ? 'Reboot initiated — the system will be unavailable shortly.' : 'Shutdown initiated — the system will power off shortly.')
+    } catch (err) {
+      setError(err.response?.data?.detail || `Failed to ${action}`)
+    }
+  }
+
   const tabLabels = {
     general: 'General',
     ntp: 'NTP Servers',
@@ -286,44 +303,79 @@ export default function Settings() {
 
       {/* General */}
       {tab === 'general' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-          <h3 className="text-lg font-semibold mb-4">General Settings</h3>
-          {generalLoading ? (
-            <div className="text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
-          ) : (
-            <div className="space-y-4 max-w-lg">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Hostname</label>
-                <input
-                  type="text"
-                  value={hostname}
-                  onChange={e => setHostname(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Timezone</label>
-                <select
-                  value={timezone}
-                  onChange={e => setTimezone(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+            <h3 className="text-lg font-semibold mb-4">General Settings</h3>
+            {generalLoading ? (
+              <div className="text-gray-500 dark:text-gray-400 text-sm">Loading...</div>
+            ) : (
+              <div className="space-y-4 max-w-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Hostname</label>
+                  <input
+                    type="text"
+                    value={hostname}
+                    onChange={e => setHostname(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Timezone</label>
+                  <select
+                    value={timezone}
+                    onChange={e => setTimezone(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {timezones.map(tz => (
+                      <option key={tz} value={tz}>{tz}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={saveGeneral}
+                  disabled={generalSaving}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {timezones.map(tz => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))}
-                </select>
+                  {generalSaving ? 'Saving...' : 'Save'}
+                </button>
+                {generalMsg && <div className="text-sm text-green-600">{generalMsg}</div>}
               </div>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+            <h3 className="text-lg font-semibold mb-2">Power</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Reboot or shut down the host system. All connections will be lost.</p>
+            <div className="flex gap-3">
               <button
-                onClick={saveGeneral}
-                disabled={generalSaving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                onClick={() => setPowerConfirm('reboot')}
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded hover:bg-amber-700"
               >
-                {generalSaving ? 'Saving...' : 'Save'}
+                Reboot
               </button>
-              {generalMsg && <div className="text-sm text-green-600">{generalMsg}</div>}
+              <button
+                onClick={() => setPowerConfirm('shutdown')}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Shut Down
+              </button>
             </div>
-          )}
+            {powerMsg && <div className="mt-3 text-sm text-amber-600 dark:text-amber-400">{powerMsg}</div>}
+          </div>
         </div>
+      )}
+
+      {powerConfirm && (
+        <ConfirmDialog
+          title={powerConfirm === 'reboot' ? 'Reboot System' : 'Shut Down System'}
+          message={powerConfirm === 'reboot'
+            ? 'Are you sure you want to reboot? All active connections and services will be interrupted.'
+            : 'Are you sure you want to shut down? The system will power off and must be physically turned back on.'}
+          confirmText={powerConfirm === 'reboot' ? 'Reboot' : 'Shut Down'}
+          danger={true}
+          onConfirm={() => handlePower(powerConfirm)}
+          onCancel={() => setPowerConfirm(null)}
+        />
       )}
 
       {/* NTP */}

@@ -27,7 +27,7 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 
 **Services** -- Dynamic DNS (ddclient), FTP (vsftpd), UPS monitoring (NUT), OpenVPN client/server, SNMP
 
-**System** -- Services control, hostname/timezone/NTP, package updates, journalctl log viewer, email alerts, config export/import, TrueNAS Core migration (users, SMB shares, snapshot policies, scrub/cloud sync tasks), browser-based web shell
+**System** -- Services control, hostname/timezone/NTP, reboot/shutdown from the UI, package updates, journalctl log viewer, email alerts, config export/import, TrueNAS Core migration (users, SMB shares, snapshot policies, scrub/cloud sync tasks), browser-based web shell
 
 **Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, token revocation on logout/password change, audit logging
 
@@ -294,7 +294,7 @@ All endpoints are prefixed with `/api`. Authentication is required for all route
 | enclosure        | `/enclosure`        | Hardware enclosure view             |
 | users            | `/users`            | Unix user and group management      |
 | services         | `/services`         | Systemd service control             |
-| system           | `/system`           | Hostname, timezone, NTP settings    |
+| system           | `/system`           | Hostname, timezone, NTP, power      |
 | updates          | `/updates`          | System package updates              |
 | network          | `/network`          | Interface, bond, DNS, route, IPMI   |
 | replication      | `/replication`      | ZFS send/receive replication tasks  |

@@ -26,6 +26,26 @@ class NTPServer(BaseModel):
     prefer: bool = False
 
 
+# --- Power ---
+
+@router.post("/reboot")
+def reboot_system(username: str = Depends(get_current_admin)):
+    logger.info(f"User '{username}' initiated system reboot")
+    result = run(["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "systemctl", "reboot"])
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    return {"message": "Reboot initiated"}
+
+
+@router.post("/shutdown")
+def shutdown_system(username: str = Depends(get_current_admin)):
+    logger.info(f"User '{username}' initiated system shutdown")
+    result = run(["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "systemctl", "poweroff"])
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    return {"message": "Shutdown initiated"}
+
+
 # --- General ---
 
 @router.get("/general")
