@@ -4,7 +4,7 @@ import api from '../api'
 export default function AppUsers({ isAdmin, currentUser }) {
   const [appUsers, setAppUsers] = useState([])
   const [showAppCreate, setShowAppCreate] = useState(false)
-  const [appForm, setAppForm] = useState({ username: '', password: '', is_admin: false })
+  const [appForm, setAppForm] = useState({ username: '', password: '', is_admin: false, create_smb_user: false })
   const [appPwTarget, setAppPwTarget] = useState(null)
   const [appNewPw, setAppNewPw] = useState('')
   const [error, setError] = useState('')
@@ -24,7 +24,7 @@ export default function AppUsers({ isAdmin, currentUser }) {
     try {
       await api.post('/auth/users', appForm)
       setShowAppCreate(false)
-      setAppForm({ username: '', password: '', is_admin: false })
+      setAppForm({ username: '', password: '', is_admin: false, create_smb_user: false })
       loadAppUsers()
     } catch (err) {
       setError(err.response?.data?.detail || 'Create failed')
@@ -81,6 +81,10 @@ export default function AppUsers({ isAdmin, currentUser }) {
                 <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                   <input type="checkbox" checked={appForm.is_admin} onChange={e => setAppForm({...appForm, is_admin: e.target.checked})} />
                   Admin
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                  <input type="checkbox" checked={appForm.create_smb_user} onChange={e => setAppForm({...appForm, create_smb_user: e.target.checked})} />
+                  Also create SMB user
                 </label>
               </div>
               <div className="flex gap-2">

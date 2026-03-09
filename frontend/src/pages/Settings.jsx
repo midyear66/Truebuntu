@@ -25,6 +25,10 @@ export default function Settings() {
   const [migLoading, setMigLoading] = useState(false)
   const [migApplying, setMigApplying] = useState(false)
   const [migResult, setMigResult] = useState(null)
+  const [migErrors, setMigErrors] = useState([])
+  const [userPasswords, setUserPasswords] = useState({})
+  const [importUsers, setImportUsers] = useState(true)
+  const [importSmbShares, setImportSmbShares] = useState(true)
   const [error, setError] = useState('')
 
   // Config state
@@ -135,11 +139,16 @@ export default function Settings() {
     if (!migFile) return
     setMigApplying(true)
     setError('')
+    setMigErrors([])
     try {
       const form = new FormData()
       form.append('file', migFile)
+      form.append('user_passwords', JSON.stringify(userPasswords))
+      form.append('import_users', importUsers)
+      form.append('import_smb_shares', importSmbShares)
       const res = await api.post('/migrate/truenas/apply', form)
       setMigResult(res.data)
+      if (res.data.errors?.length) setMigErrors(res.data.errors)
       setPreview(null)
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to apply migration')
@@ -423,7 +432,22 @@ export default function Settings() {
 
             {migResult && (
               <div className="p-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 rounded text-sm">
-                Migration applied successfully! Imported: {JSON.stringify(migResult.imported)}
+                <p className="font-medium mb-1">Migration applied successfully!</p>
+                <ul className="list-disc list-inside">
+                  {migResult.imported?.users != null && <li>Users created: {migResult.imported.users}{migResult.imported.users_skipped ? ` (${migResult.imported.users_skipped} skipped)` : ''}</li>}
+                  {migResult.imported?.smb_shares != null && <li>SMB shares created: {migResult.imported.smb_shares}{migResult.imported.smb_shares_skipped ? ` (${migResult.imported.smb_shares_skipped} skipped)` : ''}</li>}
+                  {migResult.imported?.snapshot_policies != null && <li>Snapshot policies: {migResult.imported.snapshot_policies}</li>}
+                  {migResult.imported?.scrub_tasks != null && <li>Scrub tasks: {migResult.imported.scrub_tasks}</li>}
+                  {migResult.imported?.cloud_sync_tasks != null && <li>Cloud sync tasks: {migResult.imported.cloud_sync_tasks}</li>}
+                </ul>
+              </div>
+            )}
+            {migErrors.length > 0 && (
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400 rounded text-sm mt-2">
+                <p className="font-medium mb-1">Warnings:</p>
+                <ul className="list-disc list-inside">
+                  {migErrors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
               </div>
             )}
           </div>
@@ -432,20 +456,49 @@ export default function Settings() {
             <div className="space-y-4">
               {/* Users */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
-                  Users ({preview.users?.length || 0})
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    Users ({(preview.users || []).filter(u => u.uid >= 1000).length})
+                  </h4>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                    <input type="checkbox" checked={importUsers} onChange={e => setImportUsers(e.target.checked)} />
+                    Import users
+                  </label>
+                </div>
+                {importUsers && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Set a password for each user to create their system and SMB accounts. Users without a password will be created with a locked account.
+                  </p>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-                      <th className="pb-2 pr-4">Username</th><th className="pb-2 pr-4">UID</th><th className="pb-2">GID</th>
+                      <th className="pb-2 pr-4">Username</th><th className="pb-2 pr-4">UID</th><th className="pb-2 pr-4">GID</th>
+                      <th className="pb-2 pr-4">Full Name</th>
+                      <th className="pb-2 pr-4">SMB</th>
+                      <th className="pb-2 pr-4">Groups</th>
+                      {importUsers && <th className="pb-2">Password</th>}
                     </tr></thead>
                     <tbody>
-                      {(preview.users || []).filter(u => u.uid >= 1000 || [972].includes(u.uid)).map(u => (
+                      {(preview.users || []).filter(u => !u.builtin && u.uid >= 1000).map(u => (
                         <tr key={u.username} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-medium">{u.username}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{u.uid}</td>
-                          <td className="py-1 font-mono text-xs">{u.gid}</td>
+                          <td className="py-1 pr-4 font-mono text-xs">{u.gid}</td>
+                          <td className="py-1 pr-4 text-xs text-gray-500 dark:text-gray-400">{u.full_name || '-'}</td>
+                          <td className="py-1 pr-4 text-xs">{u.has_smb ? 'Yes' : '-'}</td>
+                          <td className="py-1 pr-4 text-xs text-gray-500 dark:text-gray-400">{(u.groups || []).join(', ') || '-'}</td>
+                          {importUsers && (
+                            <td className="py-1">
+                              <input
+                                type="password"
+                                placeholder="Set password (min 8)"
+                                value={userPasswords[u.username] || ''}
+                                onChange={e => setUserPasswords(prev => ({...prev, [u.username]: e.target.value}))}
+                                className="border dark:border-gray-600 rounded px-2 py-1 text-xs w-40 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                              />
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -455,20 +508,32 @@ export default function Settings() {
 
               {/* SMB Shares */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
-                  SMB Shares ({preview.smb_shares?.length || 0})
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    SMB Shares ({preview.smb_shares?.length || 0})
+                  </h4>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                    <input type="checkbox" checked={importSmbShares} onChange={e => setImportSmbShares(e.target.checked)} />
+                    Import SMB shares
+                  </label>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-                      <th className="pb-2 pr-4">Name</th><th className="pb-2 pr-4">Path</th><th className="pb-2">Comment</th>
+                      <th className="pb-2 pr-4">Name</th><th className="pb-2 pr-4">Path</th><th className="pb-2 pr-4">Comment</th>
+                      <th className="pb-2 pr-4">Read Only</th><th className="pb-2 pr-4">Guest</th><th className="pb-2">Options</th>
                     </tr></thead>
                     <tbody>
                       {(preview.smb_shares || []).map(s => (
                         <tr key={s.name} className="border-b dark:border-gray-700 last:border-0">
                           <td className="py-1 pr-4 font-medium">{s.name}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{s.path}</td>
-                          <td className="py-1 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>
+                          <td className="py-1 pr-4 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>
+                          <td className="py-1 pr-4 text-xs">{s.read_only ? 'Yes' : 'No'}</td>
+                          <td className="py-1 pr-4 text-xs">{s.guest_ok ? 'Yes' : 'No'}</td>
+                          <td className="py-1 text-xs text-gray-500 dark:text-gray-400">
+                            {[s.recycle_bin && 'Recycle', s.time_machine && 'TimeMachine'].filter(Boolean).join(', ') || '-'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

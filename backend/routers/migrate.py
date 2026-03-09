@@ -1,26 +1,24 @@
-import io
 import json
 import logging
+import re
 import sqlite3
+import subprocess
 import tarfile
 import tempfile
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 
 from backend.database import get_db
 from backend.utils.auth import get_current_admin
+from backend.utils.shell import run
+from backend.utils.smb_conf import add_share, parse_smb_conf
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/migrate", tags=["migrate"], dependencies=[Depends(get_current_admin)])
 
-
-class ApplyMigrationRequest(BaseModel):
-    users: bool = True
-    smb_shares: bool = True
-    nfs_exports: bool = True
-    snapshot_policies: bool = True
-    tasks: bool = True
+VALID_USERNAME = re.compile(r"^[a-z_][a-z0-9_-]*$")
+VALID_SHARE_NAME = re.compile(r"^[a-zA-Z0-9_. -]+$")
+ALLOWED_PATHS = ("/mnt/", "/data/", "/pool/", "/tank/")
 
 
 @router.post("/truenas")
@@ -42,6 +40,9 @@ async def preview_truenas_config(file: UploadFile = File(...), username: str = D
 @router.post("/truenas/apply")
 async def apply_truenas_config(
     file: UploadFile = File(...),
+    user_passwords: str = Form("{}"),
+    import_users: str = Form("true"),
+    import_smb_shares: str = Form("true"),
     username: str = Depends(get_current_admin),
 ):
     content = await file.read()
@@ -50,7 +51,144 @@ async def apply_truenas_config(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse config: {e}")
 
+    try:
+        passwords = json.loads(user_passwords)
+    except json.JSONDecodeError:
+        passwords = {}
+
+    do_import_users = import_users.lower() == "true"
+    do_import_smb_shares = import_smb_shares.lower() == "true"
+
     results = {}
+    errors = []
+
+    # Import system users
+    if do_import_users and parsed.get("users"):
+        created = 0
+        skipped = 0
+        for user in parsed["users"]:
+            uname = user.get("username", "")
+            uid = user.get("uid")
+            # Skip builtin/system users
+            if user.get("builtin") or not uname or uid is None or uid < 1000:
+                skipped += 1
+                continue
+            # Normalize username for Linux
+            linux_name = uname.lower().replace(".", "_")
+            if not VALID_USERNAME.match(linux_name):
+                errors.append(f"Skipped user '{uname}': invalid username")
+                skipped += 1
+                continue
+            # Check if user already exists
+            check = run(["getent", "passwd", linux_name])
+            if check.ok:
+                errors.append(f"Skipped user '{linux_name}': already exists")
+                skipped += 1
+                continue
+            # Create the user's primary group if GID specified
+            gid = user.get("gid")
+            if gid and gid >= 1000:
+                gcheck = run(["getent", "group", str(gid)])
+                if not gcheck.ok:
+                    run(["groupadd", "-g", str(gid), linux_name])
+            # Create system user
+            cmd = ["useradd", "-u", str(uid), "-m"]
+            if gid and gid >= 1000:
+                cmd.extend(["-g", str(gid)])
+            cmd.append(linux_name)
+            result = run(cmd)
+            if not result.ok:
+                errors.append(f"Failed to create user '{linux_name}': {result.stderr.strip()}")
+                skipped += 1
+                continue
+            # Add to additional groups if they exist on the system
+            for grp in user.get("groups", []):
+                grp_check = run(["getent", "group", grp])
+                if grp_check.ok:
+                    run(["usermod", "-aG", grp, linux_name])
+            # Set password if provided
+            pw = passwords.get(uname) or passwords.get(linux_name)
+            if pw and len(pw) >= 8:
+                proc = subprocess.run(
+                    ["chpasswd"],
+                    input=f"{linux_name}:{pw}\n",
+                    capture_output=True, text=True, timeout=10,
+                )
+                if proc.returncode != 0:
+                    errors.append(f"User '{linux_name}' created but password set failed")
+                # Also create SMB user if they had SMB in TrueNAS
+                if user.get("has_smb", True):
+                    proc = subprocess.run(
+                        ["smbpasswd", "-a", "-s", linux_name],
+                        input=f"{pw}\n{pw}\n",
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    if proc.returncode != 0:
+                        errors.append(f"User '{linux_name}' created but SMB account failed")
+            created += 1
+        results["users"] = created
+        if skipped:
+            results["users_skipped"] = skipped
+
+    # Import SMB shares
+    if do_import_smb_shares and parsed.get("smb_shares"):
+        created = 0
+        skipped = 0
+        existing = parse_smb_conf()
+        existing_names = {n.lower() for n in existing}
+        for share in parsed["smb_shares"]:
+            name = share.get("name", "")
+            path = share.get("path", "")
+            if not name or not VALID_SHARE_NAME.match(name):
+                errors.append(f"Skipped share '{name}': invalid name")
+                skipped += 1
+                continue
+            if not path or not any(path.startswith(p) for p in ALLOWED_PATHS):
+                errors.append(f"Skipped share '{name}': invalid path '{path}'")
+                skipped += 1
+                continue
+            if name.lower() in existing_names:
+                errors.append(f"Skipped share '{name}': already exists")
+                skipped += 1
+                continue
+            params = {
+                "path": path,
+                "browseable": "yes" if share.get("browsable", True) else "no",
+                "read only": "yes" if share.get("read_only", False) else "no",
+                "guest ok": "yes" if share.get("guest_ok", False) else "no",
+            }
+            if share.get("comment"):
+                params["comment"] = share["comment"]
+            if share.get("recycle_bin"):
+                params["vfs objects"] = "recycle"
+                params["recycle:repository"] = ".recycle/%U"
+                params["recycle:keeptree"] = "yes"
+                params["recycle:versions"] = "yes"
+            if share.get("time_machine"):
+                params["fruit:time machine"] = "yes"
+                params["vfs objects"] = params.get("vfs objects", "") + " fruit streams_xattr"
+                params["vfs objects"] = params["vfs objects"].strip()
+            if share.get("hosts_allow"):
+                params["hosts allow"] = share["hosts_allow"]
+            if share.get("hosts_deny"):
+                params["hosts deny"] = share["hosts_deny"]
+            if share.get("aux_params"):
+                for line in share["aux_params"].splitlines():
+                    line = line.strip()
+                    if "=" in line:
+                        k, _, v = line.partition("=")
+                        params[k.strip()] = v.strip()
+            try:
+                add_share(name, params)
+                created += 1
+            except Exception as e:
+                errors.append(f"Failed to add share '{name}': {e}")
+                skipped += 1
+        if created > 0:
+            run(["systemctl", "reload", "smbd"])
+        results["smb_shares"] = created
+        if skipped:
+            results["smb_shares_skipped"] = skipped
 
     # Import snapshot policies
     if parsed.get("snapshot_policies"):
@@ -124,12 +262,13 @@ async def apply_truenas_config(
             db.close()
 
     logger.info(f"User '{username}' applied TrueNAS migration: {results}")
-    return {"message": "Migration applied", "imported": results}
+    return {"message": "Migration applied", "imported": results, "errors": errors}
 
 
 def _parse_truenas_tar(tar_bytes: bytes) -> dict:
     parsed = {
         "users": [],
+        "groups": [],
         "smb_shares": [],
         "nfs_exports": [],
         "snapshot_policies": [],
@@ -166,30 +305,100 @@ def _parse_truenas_tar(tar_bytes: bytes) -> dict:
         conn.row_factory = sqlite3.Row
 
         try:
-            # Users
+            # Groups (build id->gid lookup)
+            group_gid_map = {}  # group table id -> actual gid
+            group_name_map = {}  # group table id -> group name
             try:
                 rows = conn.execute(
-                    "SELECT bsdusr_username, bsdusr_uid, bsdusr_group_id FROM account_bsdusers"
+                    "SELECT id, bsdgrp_group, bsdgrp_gid, bsdgrp_builtin FROM account_bsdgroups"
                 ).fetchall()
                 for row in rows:
-                    parsed["users"].append({
-                        "username": row["bsdusr_username"],
-                        "uid": row["bsdusr_uid"],
-                        "gid": row["bsdusr_group_id"],
+                    group_gid_map[row["id"]] = row["bsdgrp_gid"]
+                    group_name_map[row["id"]] = row["bsdgrp_group"]
+                    parsed["groups"].append({
+                        "name": row["bsdgrp_group"],
+                        "gid": row["bsdgrp_gid"],
+                        "builtin": bool(row["bsdgrp_builtin"]),
                     })
             except sqlite3.OperationalError:
                 pass
 
+            # Group memberships (user_id -> list of group names)
+            user_groups = {}  # user table id -> [group_name, ...]
+            try:
+                rows = conn.execute(
+                    "SELECT bsdgrpmember_user_id, bsdgrpmember_group_id FROM account_bsdgroupmembership"
+                ).fetchall()
+                for row in rows:
+                    uid = row["bsdgrpmember_user_id"]
+                    gname = group_name_map.get(row["bsdgrpmember_group_id"], "")
+                    if gname:
+                        user_groups.setdefault(uid, []).append(gname)
+            except sqlite3.OperationalError:
+                pass
+
+            # Users
+            try:
+                rows = conn.execute(
+                    "SELECT id, bsdusr_username, bsdusr_uid, bsdusr_group_id, "
+                    "bsdusr_home, bsdusr_shell, bsdusr_full_name, bsdusr_builtin, "
+                    "bsdusr_smb, bsdusr_locked, bsdusr_password_disabled "
+                    "FROM account_bsdusers"
+                ).fetchall()
+                for row in rows:
+                    # Resolve foreign key to actual GID
+                    actual_gid = group_gid_map.get(row["bsdusr_group_id"], row["bsdusr_group_id"])
+                    parsed["users"].append({
+                        "username": row["bsdusr_username"],
+                        "uid": row["bsdusr_uid"],
+                        "gid": actual_gid,
+                        "home": row["bsdusr_home"] or "",
+                        "shell": row["bsdusr_shell"] or "",
+                        "full_name": row["bsdusr_full_name"] or "",
+                        "builtin": bool(row["bsdusr_builtin"]),
+                        "has_smb": bool(row["bsdusr_smb"]),
+                        "locked": bool(row["bsdusr_locked"]),
+                        "password_disabled": bool(row["bsdusr_password_disabled"]),
+                        "groups": user_groups.get(row["id"], []),
+                    })
+            except sqlite3.OperationalError:
+                # Fall back to minimal columns
+                try:
+                    rows = conn.execute(
+                        "SELECT bsdusr_username, bsdusr_uid, bsdusr_group_id FROM account_bsdusers"
+                    ).fetchall()
+                    for row in rows:
+                        actual_gid = group_gid_map.get(row["bsdusr_group_id"], row["bsdusr_group_id"])
+                        parsed["users"].append({
+                            "username": row["bsdusr_username"],
+                            "uid": row["bsdusr_uid"],
+                            "gid": actual_gid,
+                        })
+                except sqlite3.OperationalError:
+                    pass
+
             # SMB shares
             try:
                 rows = conn.execute(
-                    "SELECT cifs_name, cifs_path, cifs_comment FROM sharing_cifs_share"
+                    "SELECT cifs_name, cifs_path, cifs_comment, cifs_ro, cifs_browsable, "
+                    "cifs_guestok, cifs_recyclebin, cifs_timemachine, cifs_enabled, "
+                    "cifs_hostsallow, cifs_hostsdeny, cifs_auxsmbconf "
+                    "FROM sharing_cifs_share"
                 ).fetchall()
                 for row in rows:
                     parsed["smb_shares"].append({
                         "name": row["cifs_name"],
-                        "path": row["cifs_path"],
+                        "path": row["cifs_path"] or "",
                         "comment": row["cifs_comment"] or "",
+                        "read_only": bool(row["cifs_ro"]),
+                        "browsable": bool(row["cifs_browsable"]),
+                        "guest_ok": bool(row["cifs_guestok"]),
+                        "recycle_bin": bool(row["cifs_recyclebin"]),
+                        "time_machine": bool(row["cifs_timemachine"]),
+                        "enabled": bool(row["cifs_enabled"]),
+                        "hosts_allow": row["cifs_hostsallow"] or "",
+                        "hosts_deny": row["cifs_hostsdeny"] or "",
+                        "aux_params": row["cifs_auxsmbconf"] or "",
                     })
             except sqlite3.OperationalError:
                 pass

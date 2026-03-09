@@ -1,11 +1,13 @@
 import re
 import logging
+import subprocess
 
 from fastapi import APIRouter, HTTPException, Response, Depends, Request
 from pydantic import BaseModel
 
 from backend.database import get_db, admin_exists
 from backend.utils.rate_limit import limiter
+from backend.utils.shell import run
 from backend.utils.auth import (
     hash_password,
     verify_password,
@@ -251,6 +253,7 @@ class AppUserCreateRequest(BaseModel):
     username: str
     password: str
     is_admin: bool = False
+    create_smb_user: bool = False
 
 
 class AppUserPasswordRequest(BaseModel):
@@ -299,8 +302,45 @@ def create_app_user(req: AppUserCreateRequest, admin: str = Depends(get_current_
     finally:
         db.close()
 
-    logger.info(f"Admin '{admin}' created app user '{req.username}'")
-    return {"message": "User created", "username": req.username}
+    smb_created = False
+    smb_error = ""
+    if req.create_smb_user:
+        # Create system user (lowercase, sanitized)
+        linux_name = re.sub(r"[^a-z0-9_-]", "_", req.username.lower())
+        check = run(["getent", "passwd", linux_name])
+        if check.ok:
+            # System user already exists, just add SMB
+            pass
+        else:
+            result = run(["useradd", "-m", linux_name])
+            if not result.ok:
+                smb_error = f"Failed to create system user: {result.stderr.strip()}"
+        if not smb_error:
+            # Set system password
+            proc = subprocess.run(
+                ["chpasswd"],
+                input=f"{linux_name}:{req.password}\n",
+                capture_output=True, text=True, timeout=10,
+            )
+            # Create SMB user
+            proc = subprocess.run(
+                ["smbpasswd", "-a", "-s", linux_name],
+                input=f"{req.password}\n{req.password}\n",
+                capture_output=True, text=True, timeout=10,
+            )
+            if proc.returncode == 0:
+                smb_created = True
+            else:
+                smb_error = f"Failed to create SMB user: {proc.stderr.strip()}"
+
+    logger.info(f"Admin '{admin}' created app user '{req.username}'" +
+                (f" with SMB user" if smb_created else ""))
+    result = {"message": "User created", "username": req.username}
+    if req.create_smb_user:
+        result["smb_created"] = smb_created
+        if smb_error:
+            result["smb_error"] = smb_error
+    return result
 
 
 @router.delete("/users/{username}")
