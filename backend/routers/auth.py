@@ -1,9 +1,11 @@
+import re
 import logging
 
-from fastapi import APIRouter, HTTPException, Response, Depends
+from fastapi import APIRouter, HTTPException, Response, Depends, Request
 from pydantic import BaseModel
 
 from backend.database import get_db, admin_exists
+from backend.utils.rate_limit import limiter
 from backend.utils.auth import (
     hash_password,
     verify_password,
@@ -14,8 +16,30 @@ from backend.utils.auth import (
     COOKIE_NAME,
 )
 
+
+def _is_secure(request: Request) -> bool:
+    """Determine if Secure flag should be set on cookies."""
+    if request.url.scheme == "https":
+        return True
+    proto = request.headers.get("x-forwarded-proto", "")
+    return proto.lower() == "https"
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+VALID_APP_USERNAME = re.compile(r"^[a-zA-Z0-9_-]{2,32}$")
+
+
+def _validate_password(password: str):
+    """Require >= 8 chars, 1 uppercase, 1 lowercase, 1 digit."""
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+    if not re.search(r"[0-9]", password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one digit")
 
 
 class LoginRequest(BaseModel):
@@ -34,11 +58,13 @@ def setup_required():
 
 
 @router.post("/setup")
-def setup(req: SetupRequest, response: Response):
+@limiter.limit("5/minute")
+def setup(req: SetupRequest, request: Request, response: Response):
     if admin_exists():
         raise HTTPException(status_code=400, detail="Admin already exists")
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not VALID_APP_USERNAME.match(req.username):
+        raise HTTPException(status_code=400, detail="Username must be 2-32 alphanumeric characters, hyphens, or underscores")
+    _validate_password(req.password)
 
     db = get_db()
     try:
@@ -47,15 +73,21 @@ def setup(req: SetupRequest, response: Response):
             (req.username, hash_password(req.password)),
         )
         db.commit()
+        row = db.execute(
+            "SELECT token_version FROM users WHERE username = ?", (req.username,)
+        ).fetchone()
+        token_version = row["token_version"] if row else 0
     finally:
         db.close()
 
-    token = create_token(req.username)
+    token = create_token(req.username, token_version)
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
         samesite="strict",
+        secure=_is_secure(request),
+        max_age=86400,
         path="/",
     )
     logger.info(f"Admin user '{req.username}' created via setup")
@@ -63,11 +95,12 @@ def setup(req: SetupRequest, response: Response):
 
 
 @router.post("/login")
-def login(req: LoginRequest, response: Response):
+@limiter.limit("5/minute")
+def login(req: LoginRequest, request: Request, response: Response):
     db = get_db()
     try:
         row = db.execute(
-            "SELECT username, password_hash, totp_enabled, is_admin FROM users WHERE username = ?",
+            "SELECT username, password_hash, totp_enabled, is_admin, token_version FROM users WHERE username = ?",
             (req.username,),
         ).fetchone()
     finally:
@@ -80,14 +113,25 @@ def login(req: LoginRequest, response: Response):
     if row["totp_enabled"]:
         pending_token = create_pending_2fa_token(req.username)
         logger.info(f"User '{req.username}' requires 2FA verification")
-        return {"requires_2fa": True, "pending_token": pending_token}
+        response.set_cookie(
+            key="nas_2fa_pending",
+            value=pending_token,
+            httponly=True,
+            samesite="strict",
+            secure=_is_secure(request),
+            max_age=300,
+            path="/",
+        )
+        return {"requires_2fa": True}
 
-    token = create_token(req.username)
+    token = create_token(req.username, row["token_version"])
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
         samesite="strict",
+        secure=_is_secure(request),
+        max_age=86400,
         path="/",
     )
     logger.info(f"User '{req.username}' logged in")
@@ -95,7 +139,17 @@ def login(req: LoginRequest, response: Response):
 
 
 @router.post("/logout")
-def logout(response: Response):
+def logout(response: Response, username: str = Depends(get_current_user)):
+    # Increment token_version to invalidate all existing tokens
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE users SET token_version = token_version + 1 WHERE username = ?",
+            (username,),
+        )
+        db.commit()
+    finally:
+        db.close()
     response.delete_cookie(key=COOKIE_NAME, path="/")
     return {"message": "Logged out"}
 
@@ -157,9 +211,9 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/change-password")
-def change_password(req: ChangePasswordRequest, username: str = Depends(get_current_user)):
-    if len(req.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+@limiter.limit("5/minute")
+def change_password(req: ChangePasswordRequest, request: Request, username: str = Depends(get_current_user)):
+    _validate_password(req.new_password)
 
     db = get_db()
     try:
@@ -170,7 +224,7 @@ def change_password(req: ChangePasswordRequest, username: str = Depends(get_curr
             raise HTTPException(status_code=401, detail="Current password is incorrect")
 
         db.execute(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
+            "UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE username = ?",
             (hash_password(req.new_password), username),
         )
         db.commit()
@@ -226,10 +280,9 @@ def list_app_users(admin: str = Depends(get_current_admin)):
 
 @router.post("/users")
 def create_app_user(req: AppUserCreateRequest, admin: str = Depends(get_current_admin)):
-    if len(req.username) < 2:
-        raise HTTPException(status_code=400, detail="Username must be at least 2 characters")
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not VALID_APP_USERNAME.match(req.username):
+        raise HTTPException(status_code=400, detail="Username must be 2-32 alphanumeric characters, hyphens, or underscores")
+    _validate_password(req.password)
 
     db = get_db()
     try:
@@ -283,8 +336,7 @@ def delete_app_user(username: str, admin: str = Depends(get_current_admin)):
 def reset_app_user_password(
     username: str, req: AppUserPasswordRequest, admin: str = Depends(get_current_admin)
 ):
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    _validate_password(req.password)
 
     db = get_db()
     try:
@@ -295,7 +347,7 @@ def reset_app_user_password(
             raise HTTPException(status_code=404, detail="User not found")
 
         db.execute(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
+            "UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE username = ?",
             (hash_password(req.password), username),
         )
         db.commit()

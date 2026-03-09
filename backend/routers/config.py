@@ -1,6 +1,7 @@
 import io
 import json
 import logging
+import re
 import shutil
 import sqlite3
 from datetime import datetime
@@ -16,6 +17,66 @@ from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(get_current_admin)])
+
+# Validation patterns for imported config data
+VALID_DISK_NAME = re.compile(r"^[a-zA-Z0-9_.-]+$")
+VALID_DATASET = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_./:-]*$")
+VALID_HOSTNAME = re.compile(r"^[a-zA-Z0-9._-]+$")
+VALID_USERNAME = re.compile(r"^[a-zA-Z0-9._-]+$")
+VALID_SSH_KEY_PATH = re.compile(r"^[a-zA-Z0-9_./-]+$")
+
+RSYNC_SAFE_FLAGS = {
+    "--delete", "--compress", "--verbose", "--progress", "--stats",
+    "--partial", "--bwlimit", "--exclude", "--include", "--checksum",
+    "--dry-run", "-n", "--ignore-existing", "--ignore-times",
+    "--size-only", "--update", "-u", "--backup", "--suffix",
+    "--max-size", "--min-size", "--timeout", "--chmod",
+}
+
+
+def _validate_imported_smart_tests(tests: list):
+    """Validate disk names in imported SMART tests."""
+    for t in tests:
+        disks = t.get("disks", "[]")
+        if isinstance(disks, str):
+            disks = json.loads(disks)
+        for disk in disks:
+            if not VALID_DISK_NAME.match(disk):
+                raise HTTPException(status_code=400, detail=f"Invalid disk name in SMART test: {disk}")
+
+
+def _validate_imported_replication(tasks: list):
+    """Validate datasets, hostnames, users, SSH paths in imported replication tasks."""
+    for t in tasks:
+        if not VALID_DATASET.match(t.get("source_dataset", "")):
+            raise HTTPException(status_code=400, detail=f"Invalid source dataset: {t.get('source_dataset')}")
+        if not VALID_DATASET.match(t.get("destination_dataset", "")):
+            raise HTTPException(status_code=400, detail=f"Invalid destination dataset: {t.get('destination_dataset')}")
+        if not VALID_HOSTNAME.match(t.get("destination_host", "")):
+            raise HTTPException(status_code=400, detail=f"Invalid destination host: {t.get('destination_host')}")
+        dest_user = t.get("destination_user", "root")
+        if dest_user and not VALID_USERNAME.match(dest_user):
+            raise HTTPException(status_code=400, detail=f"Invalid destination user: {dest_user}")
+        ssh_path = t.get("ssh_key_path", "")
+        if ssh_path and not VALID_SSH_KEY_PATH.match(ssh_path):
+            raise HTTPException(status_code=400, detail=f"Invalid SSH key path: {ssh_path}")
+
+
+def _validate_imported_rsync(tasks: list):
+    """Validate hosts, users, and reject dangerous rsync flags."""
+    for t in tasks:
+        host = t.get("remote_host", "")
+        if host and not VALID_HOSTNAME.match(host):
+            raise HTTPException(status_code=400, detail=f"Invalid remote host: {host}")
+        user = t.get("remote_user", "root")
+        if user and not VALID_USERNAME.match(user):
+            raise HTTPException(status_code=400, detail=f"Invalid remote user: {user}")
+        extra_args = t.get("extra_args", "")
+        if extra_args:
+            for arg in extra_args.split():
+                flag = arg.split("=")[0]
+                if flag.startswith("-") and flag not in RSYNC_SAFE_FLAGS:
+                    raise HTTPException(status_code=400, detail=f"Disallowed rsync flag in import: {flag}")
 
 
 @router.get("/export")
@@ -114,6 +175,14 @@ async def import_config(file: UploadFile = File(...), username: str = Depends(ge
 
     if data.get("version") not in (1, 2, 3):
         raise HTTPException(status_code=400, detail="Unsupported config version")
+
+    # Validate imported data before inserting
+    if "smart_tests" in data:
+        _validate_imported_smart_tests(data["smart_tests"])
+    if "zfs_replication_tasks" in data:
+        _validate_imported_replication(data["zfs_replication_tasks"])
+    if "rsync_tasks" in data:
+        _validate_imported_rsync(data["rsync_tasks"])
 
     results = {}
     db = get_db()

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(get_current_admin)])
 
 HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$")
+VALID_NTP_ADDRESS = re.compile(r"^[a-zA-Z0-9._-]+$")
 CHRONY_CONF = "/etc/chrony/chrony.conf"
 
 
@@ -158,6 +159,8 @@ def get_ntp(username: str = Depends(get_current_admin)):
 
 @router.post("/ntp")
 def add_ntp(body: NTPServer, username: str = Depends(get_current_admin)):
+    if not VALID_NTP_ADDRESS.match(body.address):
+        raise HTTPException(status_code=400, detail="Invalid NTP server address")
     servers = _parse_chrony_conf()
     for s in servers:
         if s["address"] == body.address:

@@ -1,4 +1,5 @@
 import json
+import re
 import logging
 from datetime import datetime
 
@@ -13,6 +14,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/smart-tests", tags=["smart-tests"], dependencies=[Depends(get_current_admin)])
 
 VALID_TEST_TYPES = {"short", "long", "conveyance", "offline"}
+VALID_DISK_NAME = re.compile(r"^[a-zA-Z0-9_.-]+$")
+
+
+def _validate_disks(disks: list[str]):
+    for disk in disks:
+        if not VALID_DISK_NAME.match(disk):
+            raise HTTPException(status_code=400, detail=f"Invalid disk name: {disk}")
 
 
 class SmartTestCreate(BaseModel):
@@ -64,6 +72,7 @@ def get_smart_test(test_id: int):
 def create_smart_test(req: SmartTestCreate, username: str = Depends(get_current_admin)):
     if req.test_type not in VALID_TEST_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid test type: {req.test_type}")
+    _validate_disks(req.disks)
 
     db = get_db()
     try:
@@ -85,6 +94,8 @@ def create_smart_test(req: SmartTestCreate, username: str = Depends(get_current_
 def update_smart_test(test_id: int, req: SmartTestUpdate, username: str = Depends(get_current_admin)):
     if req.test_type is not None and req.test_type not in VALID_TEST_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid test type: {req.test_type}")
+    if req.disks is not None:
+        _validate_disks(req.disks)
 
     db = get_db()
     try:
@@ -146,6 +157,8 @@ def run_smart_test(test_id: int, username: str = Depends(get_current_admin)):
 
     if not test["disks"]:
         raise HTTPException(status_code=400, detail="No disks configured for this test")
+
+    _validate_disks(test["disks"])
 
     # Build a shell command that runs smartctl on each disk chained with &&
     cmds = [f"smartctl -t {test['test_type']} /dev/{disk}" for disk in test["disks"]]

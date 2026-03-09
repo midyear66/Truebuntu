@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "/data/nas.db")
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 9
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -276,6 +276,38 @@ def init_db():
             db.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (7,),
+            )
+            db.commit()
+
+        if current_version < 8:
+            logger.info("Applying schema v8 — token revocation + TOTP replay protection")
+            db.execute("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0")
+            db.execute("ALTER TABLE users ADD COLUMN totp_last_used_at INTEGER DEFAULT NULL")
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (8,),
+            )
+            db.commit()
+
+        if current_version < 9:
+            logger.info("Applying schema v9 — encrypt existing TOTP secrets")
+            rows = db.execute(
+                "SELECT id, totp_secret FROM users WHERE totp_secret IS NOT NULL AND totp_secret != ''"
+            ).fetchall()
+            from backend.utils.auth import encrypt_totp_secret
+            for row in rows:
+                secret = row["totp_secret"]
+                # Skip if already encrypted (Fernet tokens start with 'gAAAAA')
+                if secret.startswith("gAAAAA"):
+                    continue
+                encrypted = encrypt_totp_secret(secret)
+                db.execute(
+                    "UPDATE users SET totp_secret = ? WHERE id = ?",
+                    (encrypted, row["id"]),
+                )
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (9,),
             )
             db.commit()
 

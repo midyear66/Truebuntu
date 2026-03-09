@@ -2,17 +2,20 @@ services:
   truebuntu:
     build: .
     restart: unless-stopped
+    # privileged is required for nsenter to access host namespaces
     privileged: true
     network_mode: host
     pid: host
+    mem_limit: 2g
+    pids_limit: 256
     volumes:
       - /etc/samba:/etc/samba
       - /var/lib/samba:/var/lib/samba
       - /etc/exports:/etc/exports
       - /etc/passwd:/etc/passwd
-      - /etc/shadow:/etc/shadow
+      - /etc/shadow:/etc/shadow:ro
       - /etc/group:/etc/group
-      - /etc/gshadow:/etc/gshadow
+      - /etc/gshadow:/etc/gshadow:ro
       - /etc/chrony:/etc/chrony
       - /var/run/dbus:/var/run/dbus:ro
       - /etc/netplan:/etc/netplan

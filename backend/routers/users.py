@@ -183,6 +183,10 @@ def create_group(req: GroupCreateRequest, username: str = Depends(get_current_ad
 
 @router.post("/{target_user}/groups/{group}")
 def add_user_to_group(target_user: str, group: str, username: str = Depends(get_current_admin)):
+    if not VALID_USERNAME.match(target_user):
+        raise HTTPException(status_code=400, detail="Invalid username")
+    if not VALID_USERNAME.match(group):
+        raise HTTPException(status_code=400, detail="Invalid group name")
     result = run(["usermod", "-aG", group, target_user])
     if not result.ok:
         raise HTTPException(status_code=500, detail=result.stderr.strip())

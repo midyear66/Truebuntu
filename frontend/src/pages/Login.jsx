@@ -11,7 +11,6 @@ export default function Login({ onLogin }) {
 
   // 2FA state
   const [needs2fa, setNeeds2fa] = useState(false)
-  const [pendingToken, setPendingToken] = useState('')
   const [otpCode, setOtpCode] = useState('')
 
   const handleSubmit = async (e) => {
@@ -22,7 +21,6 @@ export default function Login({ onLogin }) {
       const res = await api.post('/auth/login', { username, password })
       if (res.data.requires_2fa) {
         setNeeds2fa(true)
-        setPendingToken(res.data.pending_token)
       } else {
         onLogin(res.data.username || username, res.data.is_admin)
       }
@@ -39,7 +37,6 @@ export default function Login({ onLogin }) {
     setLoading(true)
     try {
       const res = await api.post('/auth/2fa/verify', {
-        pending_token: pendingToken,
         code: otpCode,
       })
       onLogin(res.data.username || username, res.data.is_admin)
@@ -115,7 +112,7 @@ export default function Login({ onLogin }) {
             </button>
             <button
               type="button"
-              onClick={() => { setNeeds2fa(false); setPendingToken(''); setOtpCode(''); setError('') }}
+              onClick={() => { setNeeds2fa(false); setOtpCode(''); setError('') }}
               className="w-full mt-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               Back to login

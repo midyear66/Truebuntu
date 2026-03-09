@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -121,6 +122,9 @@ def get_config():
     return {"installed": True, "config": config.model_dump()}
 
 
+VALID_SHUTDOWN_CMD = re.compile(r"^[a-zA-Z0-9_./ +-]+$")
+
+
 @router.put("/config")
 def save_config(body: UPSConfig, username: str = Depends(get_current_admin)):
     if not _is_installed():
@@ -128,6 +132,16 @@ def save_config(body: UPSConfig, username: str = Depends(get_current_admin)):
 
     if body.mode not in ("standalone", "netserver", "netclient"):
         raise HTTPException(status_code=400, detail=f"Invalid mode: {body.mode}")
+
+    # Reject newlines in all string fields
+    for field_name in ("driver", "port", "ups_name", "monitor_host",
+                       "monitor_user", "monitor_password", "shutdown_cmd", "powerdown_flag"):
+        val = getattr(body, field_name)
+        if "\n" in val or "\r" in val:
+            raise HTTPException(status_code=400, detail=f"Newlines not allowed in {field_name}")
+
+    if not VALID_SHUTDOWN_CMD.match(body.shutdown_cmd):
+        raise HTTPException(status_code=400, detail="Invalid shutdown command format")
 
     # Write nut.conf
     nut_content = f'MODE={body.mode}\n'
