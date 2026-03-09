@@ -29,7 +29,7 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 
 **System** -- Services control, hostname/timezone/NTP, package updates, journalctl log viewer, email alerts, config export/import, TrueNAS migration, browser-based web shell
 
-**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA, role-based access (admin/user), audit logging
+**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, token revocation on logout/password change, audit logging
 
 **UI** -- Dark mode, collapsible sidebar, drag-and-drop dashboard, configurable polling interval
 
@@ -235,7 +235,7 @@ curl -fsSL https://raw.githubusercontent.com/midyear66/Truebuntu/main/install.sh
 └────────────────────────────────────────────────────┘
 ```
 
-The container runs in **privileged mode** with **host network and PID namespace** to directly manage ZFS pools, system services, disks, and file sharing on the host.
+The container runs in **privileged mode** with **host network and PID namespace** to directly manage ZFS pools, system services, disks, and file sharing on the host. Resource limits (2 GB memory, 256 PIDs) are enforced via Docker Compose.
 
 ### Host Volume Mounts
 
@@ -244,7 +244,10 @@ The container runs in **privileged mode** with **host network and PID namespace*
 | `/etc/samba`         | SMB share configuration        |
 | `/etc/exports`       | NFS export configuration       |
 | `/etc/passwd` (ro)   | System user enumeration        |
-| `/etc/shadow`        | Password management            |
+| `/etc/shadow` (ro)   | Password verification          |
+| `/etc/group`         | System group management        |
+| `/etc/gshadow` (ro)  | Group password verification    |
+| `/var/lib/samba`     | Samba state and databases      |
 | `/etc/chrony`        | NTP server configuration       |
 | `/etc/netplan`       | Network interface configuration|
 | `/var/run/dbus` (ro) | D-Bus for systemd interaction  |
@@ -257,7 +260,7 @@ The container runs in **privileged mode** with **host network and PID namespace*
 | Frontend | React 18, Vite 6, Tailwind CSS 3.4, @dnd-kit |
 | Backend  | Python 3.12, FastAPI, Uvicorn       |
 | Database | SQLite (aiosqlite, WAL mode)        |
-| Auth     | JWT (python-jose), bcrypt, pyotp    |
+| Auth     | JWT (PyJWT), bcrypt, pyotp          |
 | Runtime  | Docker, Docker Compose              |
 
 ## Configuration
@@ -266,7 +269,7 @@ The `.env` file controls runtime settings. Copy `.env.example` to `.env` before 
 
 | Variable        | Default                       | Description                                      |
 |-----------------|-------------------------------|--------------------------------------------------|
-| `SECRET_KEY`    | `change-me-to-a-random-string`| Secret used to sign JWT tokens. Generate with `openssl rand -hex 24`. |
+| `SECRET_KEY`    | *(required)*                  | Secret used to sign JWT tokens. The app **will not start** if this is missing or set to a placeholder. Generate with `openssl rand -hex 24`. |
 | `DATABASE_PATH` | `/data/nas.db`                | Path to the SQLite database inside the container. |
 | `LOG_LEVEL`     | `info`                        | Uvicorn log level (`debug`, `info`, `warning`, `error`). |
 
