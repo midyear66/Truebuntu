@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -10,6 +11,8 @@ from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/snmp", tags=["snmp"], dependencies=[Depends(get_current_admin)])
+
+VALID_V3_USERNAME = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 CONFIG_FILE = "/etc/snmp/snmpd.conf"
 
@@ -83,6 +86,16 @@ def get_config():
 def save_config(body: SNMPConfig, username: str = Depends(get_current_admin)):
     if not _is_installed():
         raise HTTPException(status_code=400, detail="snmpd is not installed")
+
+    # Reject newlines in string fields
+    for field_name in ("location", "contact", "community", "agent_address",
+                       "v3_username", "v3_auth_passphrase", "v3_privacy_passphrase"):
+        val = getattr(body, field_name)
+        if "\n" in val or "\r" in val:
+            raise HTTPException(status_code=400, detail=f"Newlines not allowed in {field_name}")
+
+    if body.v3_username and not VALID_V3_USERNAME.match(body.v3_username):
+        raise HTTPException(status_code=400, detail="Invalid v3 username format")
 
     if body.v3_auth_type not in ("MD5", "SHA"):
         raise HTTPException(status_code=400, detail=f"Invalid auth type: {body.v3_auth_type}")

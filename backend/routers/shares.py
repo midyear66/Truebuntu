@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,6 +10,9 @@ from backend.utils.smb_conf import get_shares, add_share, update_share, remove_s
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/shares", tags=["shares"], dependencies=[Depends(get_current_user)])
+
+ALLOWED_PATH_PREFIXES = ("/mnt/", "/data/", "/pool/", "/tank/")
+VALID_OWNER = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 
 class ShareCreateRequest(BaseModel):
@@ -67,6 +71,9 @@ def list_shares():
 
 @router.post("")
 def create_share(req: ShareCreateRequest, username: str = Depends(get_current_admin)):
+    if req.path and not req.path.startswith(ALLOWED_PATH_PREFIXES):
+        raise HTTPException(status_code=400, detail="Path must start with /mnt/, /data/, /pool/, or /tank/")
+
     existing = [s["name"] for s in get_shares()]
     if req.name in existing:
         raise HTTPException(status_code=409, detail=f"Share '{req.name}' already exists")
@@ -78,6 +85,8 @@ def create_share(req: ShareCreateRequest, username: str = Depends(get_current_ad
     # Set directory ownership so write_list users can actually write
     owner = (req.write_list or req.valid_users or "").split(",")[0].strip().lstrip("@")
     if owner and req.path:
+        if not VALID_OWNER.match(owner):
+            raise HTTPException(status_code=400, detail=f"Invalid owner name: {owner}")
         run(["chown", "-R", f"{owner}:{owner}", req.path])
 
     logger.info(f"User '{username}' created SMB share '{req.name}'")

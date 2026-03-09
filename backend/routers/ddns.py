@@ -76,11 +76,20 @@ def save_config(body: DDNSConfig, username: str = Depends(get_current_admin)):
     if body.provider not in PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Invalid provider: {body.provider}")
 
+    # Reject newlines in all string fields
+    for field_name in ("server", "protocol", "login", "password", "domain"):
+        val = getattr(body, field_name)
+        if "\n" in val or "\r" in val:
+            raise HTTPException(status_code=400, detail=f"Newlines not allowed in {field_name}")
+
+    # Escape single quotes in password to prevent config injection
+    safe_password = body.password.replace("'", "'\\''")
+
     lines = [
         f"protocol={body.protocol}",
         f"server={body.server}" if body.server else None,
         f"login={body.login}",
-        f"password='{body.password}'",
+        f"password='{safe_password}'",
         f"ssl={'yes' if body.ssl else 'no'}",
         f"daemon={body.update_interval}",
         f"{body.domain}",

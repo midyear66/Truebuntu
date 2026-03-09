@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -7,6 +8,8 @@ import subprocess
 
 from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
+
+VALID_UMASK = re.compile(r"^[0-7]{3,4}$")
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ftp", tags=["ftp"], dependencies=[Depends(get_current_admin)])
@@ -90,6 +93,8 @@ def get_config():
 def save_config(body: FTPConfig, username: str = Depends(get_current_admin)):
     if not _is_installed():
         raise HTTPException(status_code=400, detail="vsftpd is not installed")
+    if not VALID_UMASK.match(body.local_umask):
+        raise HTTPException(status_code=400, detail="Invalid umask format (expected 3-4 octal digits)")
 
     def yn(v: bool) -> str:
         return "YES" if v else "NO"

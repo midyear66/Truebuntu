@@ -1,13 +1,17 @@
 import json
 import logging
+import re
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/logs", tags=["logs"], dependencies=[Depends(get_current_admin)])
+
+VALID_UNIT = re.compile(r"^[a-zA-Z0-9@._:-]+$")
+VALID_PRIORITY = re.compile(r"^[0-7]$")
 
 
 @router.get("")
@@ -16,6 +20,11 @@ def get_logs(
     priority: str = Query("", description="Priority level (0-7)"),
     lines: int = Query(100, ge=1, le=1000, description="Number of lines"),
 ):
+    if unit and not VALID_UNIT.match(unit):
+        raise HTTPException(status_code=400, detail="Invalid unit name")
+    if priority and not VALID_PRIORITY.match(priority):
+        raise HTTPException(status_code=400, detail="Invalid priority (must be 0-7)")
+
     args = [
         "nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--",
         "journalctl", "--no-pager", "-n", str(lines), "-o", "json",

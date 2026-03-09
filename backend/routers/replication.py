@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.utils.auth import get_current_user, get_current_admin
+from backend.utils.auth import get_current_admin
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def _validate_replication_fields(source_dataset: str | None, destination_dataset
         raise HTTPException(status_code=400, detail="Port must be between 1 and 65535")
     if ssh_key_path is not None and ssh_key_path and not VALID_SSH_KEY_PATH.match(ssh_key_path):
         raise HTTPException(status_code=400, detail="Invalid SSH key path")
-router = APIRouter(prefix="/replication", tags=["replication"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/replication", tags=["replication"], dependencies=[Depends(get_current_admin)])
 
 
 class ReplicationCreate(BaseModel):

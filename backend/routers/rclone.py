@@ -1,11 +1,14 @@
 import json
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
+
+VALID_RCLONE_NAME = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rclone", tags=["rclone"], dependencies=[Depends(get_current_admin)])
@@ -43,6 +46,14 @@ def remote_detail(name: str):
 
 @router.post("/remotes")
 def create_remote(req: RemoteCreateRequest, username: str = Depends(get_current_admin)):
+    if not VALID_RCLONE_NAME.match(req.name):
+        raise HTTPException(status_code=400, detail="Invalid remote name")
+    if not VALID_RCLONE_NAME.match(req.type):
+        raise HTTPException(status_code=400, detail="Invalid remote type")
+    for key in req.config:
+        if not VALID_RCLONE_NAME.match(key):
+            raise HTTPException(status_code=400, detail=f"Invalid config key: {key}")
+
     cmd = [
         "rclone", "config", "create", req.name, req.type,
         "--config", RCLONE_CONFIG,

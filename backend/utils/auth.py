@@ -1,9 +1,13 @@
 import os
+import re
 import logging
+import hashlib
+import base64
 from datetime import datetime, timedelta, timezone
 
-from passlib.context import CryptContext
-from jose import jwt, JWTError
+import bcrypt
+import jwt
+from cryptography.fernet import Fernet
 from fastapi import Request, HTTPException, status
 
 logger = logging.getLogger(__name__)
@@ -15,21 +19,26 @@ ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 COOKIE_NAME = "nas_session"
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Fernet cipher for TOTP encryption at rest (Phase 3D)
+_fernet_key = base64.urlsafe_b64encode(hashlib.sha256(SECRET_KEY.encode()).digest())
+_fernet = Fernet(_fernet_key)
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False
 
 
-def create_token(username: str) -> str:
+def create_token(username: str, token_version: int = 0) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
     return jwt.encode(
-        {"sub": username, "exp": expire},
+        {"sub": username, "exp": expire, "ver": token_version},
         SECRET_KEY,
         algorithm=ALGORITHM,
     )
@@ -39,7 +48,7 @@ def decode_token(token: str) -> str | None:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload.get("sub")
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
 
 
@@ -60,8 +69,18 @@ def decode_pending_2fa_token(token: str) -> str | None:
         if payload.get("type") != "2fa_pending":
             return None
         return payload.get("sub")
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
+
+
+def encrypt_totp_secret(secret: str) -> str:
+    """Encrypt a TOTP secret for storage at rest."""
+    return _fernet.encrypt(secret.encode()).decode()
+
+
+def decrypt_totp_secret(encrypted: str) -> str:
+    """Decrypt a TOTP secret from storage."""
+    return _fernet.decrypt(encrypted.encode()).decode()
 
 
 def get_current_user(request: Request) -> str:
@@ -71,12 +90,41 @@ def get_current_user(request: Request) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
-    username = decode_token(token)
-    if username is None:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session",
         )
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        )
+    token_ver = payload.get("ver", 0)
+
+    # Verify user still exists and token_version matches
+    from backend.database import get_db
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT token_version FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User no longer exists",
+            )
+        if row["token_version"] != token_ver:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session has been revoked",
+            )
+    finally:
+        db.close()
+
     return username
 
 

@@ -14,6 +14,29 @@ router = APIRouter(prefix="/openvpn", tags=["openvpn"], dependencies=[Depends(ge
 CLIENT_CONF = "/etc/openvpn/client.conf"
 SERVER_CONF = "/etc/openvpn/server.conf"
 
+OPENVPN_DANGEROUS_DIRECTIVES = {
+    "script-security", "up", "down", "tls-verify", "client-connect",
+    "client-disconnect", "learn-address", "auth-user-pass-verify",
+    "route-up", "route-pre-down", "ipchange", "iproute",
+    "plugin",
+}
+
+
+def _validate_additional_params(params: str):
+    """Reject lines starting with dangerous OpenVPN directives."""
+    if not params:
+        return
+    for line in params.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith(";"):
+            continue
+        directive = stripped.split()[0].lower()
+        if directive in OPENVPN_DANGEROUS_DIRECTIVES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dangerous OpenVPN directive not allowed: {directive}",
+            )
+
 
 def _nsenter(*args) -> "ShellResult":
     return run(["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", *args])
@@ -142,6 +165,7 @@ def save_client_config(body: ClientConfig, username: str = Depends(get_current_a
     if body.key:
         lines.append(f"<key>\n{body.key}\n</key>")
     if body.additional_params:
+        _validate_additional_params(body.additional_params)
         lines.append(body.additional_params)
 
     content = "\n".join(lines) + "\n"
@@ -198,6 +222,7 @@ def save_server_config(body: ServerConfig, username: str = Depends(get_current_a
     if body.dh:
         lines.append(f"<dh>\n{body.dh}\n</dh>")
     if body.additional_params:
+        _validate_additional_params(body.additional_params)
         lines.append(body.additional_params)
 
     content = "\n".join(lines) + "\n"

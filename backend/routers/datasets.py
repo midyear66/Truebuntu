@@ -64,6 +64,8 @@ def create_dataset(req: DatasetCreateRequest, username: str = Depends(get_curren
     for key, value in req.properties.items():
         if key not in EDITABLE_PROPERTIES:
             raise HTTPException(status_code=400, detail=f"Property not allowed: {key}")
+        if re.search(r"[\n\r;|&$`]", value):
+            raise HTTPException(status_code=400, detail=f"Invalid characters in property value for '{key}'")
         cmd.extend(["-o", f"{key}={value}"])
     cmd.append(req.name)
 
@@ -83,6 +85,8 @@ def update_dataset(dataset: str, req: DatasetUpdateRequest, username: str = Depe
     for key, value in req.properties.items():
         if key not in EDITABLE_PROPERTIES:
             raise HTTPException(status_code=400, detail=f"Property not allowed: {key}")
+        if re.search(r"[\n\r;|&$`]", value):
+            raise HTTPException(status_code=400, detail=f"Invalid characters in property value for '{key}'")
         result = run(["zfs", "set", f"{key}={value}", dataset])
         if not result.ok:
             raise HTTPException(status_code=500, detail=result.stderr.strip())

@@ -7,9 +7,11 @@ load_dotenv()
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi.errors import RateLimitExceeded
 
 from backend.database import init_db, get_db
 from backend.utils.auth import decode_token, COOKIE_NAME
+from backend.utils.rate_limit import limiter
 from backend.routers import (
     auth, pools, datasets, snapshots, shares, nfs,
     users, services, tasks, disks, rclone, dashboard, migrate, config,
@@ -26,6 +28,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Truebuntu", version="0.1.0")
+
+# Rate limiter
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Too many requests. Please try again later."},
+    )
 
 
 # Audit logging middleware
@@ -54,11 +67,33 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 )
                 db.commit()
                 db.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Audit log write failed: %s", exc)
         return response
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+        # CSP on non-API routes
+        if not request.url.path.startswith("/api/"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "connect-src 'self' ws: wss:; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self' data:; "
+                "frame-ancestors 'none'"
+            )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AuditMiddleware)
 
 # Register routers
@@ -118,12 +153,14 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+STATIC_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "static"))
 
 if os.path.isdir(STATIC_DIR):
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        file_path = os.path.join(STATIC_DIR, full_path)
+        file_path = os.path.realpath(os.path.join(STATIC_DIR, full_path))
+        if not file_path.startswith(STATIC_DIR + os.sep) and file_path != STATIC_DIR:
+            return JSONResponse(status_code=400, content={"detail": "Invalid path"})
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         index = os.path.join(STATIC_DIR, "index.html")
