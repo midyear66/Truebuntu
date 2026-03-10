@@ -84,15 +84,27 @@ export default function CloudCredentials() {
       {showCreate && (
         <form onSubmit={createRemote} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Credential name" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" required />
-            <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100">
-              <option value="b2">Backblaze B2</option>
-              <option value="s3">Amazon S3</option>
-              <option value="sftp">SFTP</option>
-              <option value="local">Local</option>
-            </select>
-            <input type="text" value={form.config.account || ''} onChange={e => setForm({...form, config: {...form.config, account: e.target.value}})} placeholder="Account / Access Key" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
-            <input type="password" value={form.config.key || ''} onChange={e => setForm({...form, config: {...form.config, key: e.target.value}})} placeholder="Key / Secret" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Name</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Credential name" className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" required />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Provider</label>
+              <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100">
+                <option value="b2">Backblaze B2</option>
+                <option value="s3">Amazon S3</option>
+                <option value="sftp">SFTP</option>
+                <option value="local">Local</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Key ID</label>
+              <input type="text" value={form.config.account || ''} onChange={e => setForm({...form, config: {...form.config, account: e.target.value}})} placeholder="Key ID" className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Application Key</label>
+              <input type="password" value={form.config.key || ''} onChange={e => setForm({...form, config: {...form.config, key: e.target.value}})} placeholder="Application Key" className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
+            </div>
           </div>
           <button type="submit" className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">Create Credential</button>
         </form>
