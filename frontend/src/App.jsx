@@ -41,6 +41,7 @@ import OpenVPNConfig from './pages/OpenVPNConfig'
 import SNMPConfig from './pages/SNMPConfig'
 import Shell from './pages/Shell'
 import SmbUsers from './pages/SmbUsers'
+import CloudCredentials from './pages/CloudCredentials'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -123,6 +124,7 @@ function App() {
           <Route path="/system-users" element={adminOnly(<SystemUsers />)} />
           <Route path="/users" element={<Navigate to="/app-users" replace />} />
           <Route path="/smb-users" element={adminOnly(<SmbUsers />)} />
+          <Route path="/cloud-credentials" element={adminOnly(<CloudCredentials />)} />
           <Route path="/services/ddns" element={adminOnly(<DynamicDNS />)} />
           <Route path="/services/ftp" element={adminOnly(<FTPConfig />)} />
           <Route path="/services/ups" element={adminOnly(<UPSConfig />)} />
