@@ -179,6 +179,14 @@ def run_task(task_id: int, username: str = Depends(get_current_admin)):
         finally:
             db2.close()
 
+        if returncode != 0 and task_type == "scrub":
+            from backend.utils.email import send_alert
+            send_alert(
+                "scrub_failures",
+                f"Scrub task '{task['name']}' failed",
+                f"Scrub task '{task['name']}' exited with code {returncode}.\n\n{result_text[:500]}",
+            )
+
     mgr = JobManager()
     try:
         job_id = mgr.submit(
