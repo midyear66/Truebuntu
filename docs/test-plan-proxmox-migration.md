@@ -211,6 +211,162 @@ Validate the full migration path: create a TrueNAS VM on Proxmox with a 4-disk Z
 - [ ] Verify disk health / SMART data is visible
 - [ ] Test dark mode and sidebar GitHub link
 
+### 5.6 Alert Services
+
+#### Configure Services
+
+- [ ] Navigate to System → Alerts
+- [ ] Configure SMTP and send a test email
+- [ ] Add a **Slack** alert service (create a test channel with an [Incoming Webhook](https://api.slack.com/messaging/webhooks))
+- [ ] Add a **Pushover** alert service (sign up at pushover.net for a free 30-day trial)
+- [ ] Add a **Webhook** alert service pointing to a request catcher (e.g., [webhook.site](https://webhook.site))
+- [ ] Click **Test** on each service — verify notifications arrive
+- [ ] Disable a service, click Test again — verify it does NOT fire
+- [ ] Re-enable and verify it fires again
+
+#### Enable Alert Categories
+
+- [ ] Enable all alert category checkboxes and save
+- [ ] Verify saved settings persist after page reload
+
+#### Simulate Cron Job Failure
+
+- [ ] Create a cron job with a command that will fail:
+  ```
+  Name: Test Failure Alert
+  Command: /bin/false
+  Schedule: (use CronPicker — select "Hourly" or run manually)
+  ```
+- [ ] Click "Run Now" on the job
+- [ ] Verify alerts arrive on email + all enabled services
+- [ ] Check the Jobs page for the failed job with exit code 1
+
+#### Simulate Rsync Task Failure
+
+- [ ] Create an rsync task pointing to a non-existent remote host:
+  ```
+  Source: /tmp
+  Remote Host: 192.0.2.1 (RFC 5737 TEST-NET — guaranteed unreachable)
+  Remote Path: /tmp
+  ```
+- [ ] Run the task — it should fail with a connection timeout
+- [ ] Verify rsync failure alerts arrive
+
+#### Simulate S.M.A.R.T. Test Failure
+
+> Note: SMART test failures are hard to simulate on virtual disks since Proxmox virtio disks don't support SMART. If testing on physical hardware:
+
+- [ ] Schedule a short SMART test on a disk
+- [ ] Run it and verify completion (will likely pass on healthy hardware)
+- [ ] To force an alert, temporarily modify the test to target a non-existent disk:
+  - Create a SMART test with disk `sdz` (doesn't exist)
+  - Run it — smartctl will fail, triggering the alert
+
+#### Simulate Replication Failure
+
+- [ ] Create a replication task pointing to an unreachable host:
+  ```
+  Source Dataset: <pool>/<dataset>
+  Destination Host: 192.0.2.1
+  Destination Dataset: test/backup
+  ```
+- [ ] Run the task — SSH connection will fail
+- [ ] Verify replication failure alerts arrive
+
+#### Simulate ZFS Alerts
+
+**Scrub failure:**
+- [ ] Enable the "ZFS Failures" alert category
+- [ ] Run a scrub on the pool from the UI (Storage → Pools → Scrub)
+- [ ] On a healthy pool this will succeed (no alert) — to force a scrub alert, temporarily detach a disk before scrubbing:
+  ```bash
+  # On the Proxmox host, hot-remove a data disk from the VM (simulates disk failure)
+  qm set <ubuntu-vmid> --delete scsi4
+  ```
+- [ ] The pool should enter DEGRADED state — verify the dashboard triggers a **pool degraded** alert
+- [ ] Start a scrub while degraded — if it reports errors, a **scrub failure** alert should fire
+
+**Pool capacity warning (80%+):**
+- [ ] Create a small test pool to make it easy to fill:
+  ```bash
+  # Create 2 x 100MB files to use as vdevs
+  dd if=/dev/zero of=/tmp/vdev1 bs=1M count=100
+  dd if=/dev/zero of=/tmp/vdev2 bs=1M count=100
+  sudo zpool create testpool mirror /tmp/vdev1 /tmp/vdev2
+  ```
+- [ ] Fill it past 80%:
+  ```bash
+  sudo dd if=/dev/urandom of=/testpool/bigfile bs=1M count=85
+  ```
+- [ ] Reload the dashboard — verify a **capacity warning** alert fires
+- [ ] Clean up:
+  ```bash
+  sudo zpool destroy testpool
+  rm /tmp/vdev1 /tmp/vdev2
+  ```
+
+**Dedup verification:**
+- [ ] After a pool degraded alert fires, reload the dashboard several times
+- [ ] Verify only **one** alert is sent (not one per dashboard poll)
+- [ ] Fix the pool (reattach the disk, `zpool online <pool> <disk>`, resilver)
+- [ ] Once the pool returns to ONLINE, degrade it again
+- [ ] Verify a **new** alert fires (dedup resets when condition clears)
+
+### 5.7 Cloud Credentials
+
+- [ ] Navigate to Accounts → Cloud Credentials
+- [ ] Create a **Backblaze B2** credential — click Test, verify success
+- [ ] Create an **Amazon S3** credential (or S3-compatible like MinIO/Wasabi) — click Test
+- [ ] Create an **SFTP** credential pointing to the VM itself (`localhost`, port 22) — click Test
+- [ ] Create a **WebDAV** credential if a WebDAV server is available — click Test
+- [ ] For OAuth providers (Google Drive, Dropbox, OneDrive), verify the form shows the authorization note
+- [ ] Delete a credential — verify it's removed from the list
+- [ ] View credential details — verify sensitive keys are masked
+
+### 5.8 Cloud Sync Tasks with Bucket Auto-Load
+
+- [ ] Navigate to Tasks → Cloud Sync
+- [ ] Create a new task and select a B2 or S3 credential from the dropdown
+- [ ] Verify the **bucket dropdown** auto-populates with available buckets
+- [ ] Select "Other (enter manually)..." — verify a manual text input appears
+- [ ] Complete the task setup and click "Run Now"
+- [ ] Verify files transfer (check Jobs page for success/failure)
+
+### 5.9 Visual Cron Scheduler (CronPicker)
+
+Test the CronPicker component on all 5 pages that use it:
+
+- [ ] **Cron Jobs** — create a job, verify preset buttons work (Hourly, Daily, Weekly, Monthly)
+- [ ] **Rsync Tasks** — create a task, click "Custom", use the 5-field dropdowns
+- [ ] **S.M.A.R.T. Tests** — verify the cron string updates live below the picker
+- [ ] **Snapshot Tasks** — verify the old preset dropdown is gone, replaced by CronPicker
+- [ ] **Cloud Sync** — verify CronPicker renders in the task form
+
+For each page:
+- [ ] Select a preset → verify the cron string matches (e.g., "Daily (midnight)" = `0 0 * * *`)
+- [ ] Click "Custom" → change minute to 30, hour to 2 → verify string shows `30 2 * * *`
+- [ ] Save the task → reload → verify the schedule persisted correctly
+- [ ] Edit the task → verify CronPicker initializes with the saved value
+
+### 5.10 VLANs
+
+- [ ] Navigate to Network → Interfaces → VLANs tab
+- [ ] Click "Create VLAN"
+- [ ] Set VLAN ID to `100`, select a parent interface, leave DHCP enabled
+- [ ] Click "Create VLAN" — verify it appears in the table
+- [ ] Verify on the host that netplan was applied:
+  ```bash
+  cat /etc/netplan/99-truebuntu.yaml  # should contain a vlans: section
+  ip link show  # should show vlan100 interface
+  ```
+- [ ] Delete the VLAN — verify it's removed from the table and netplan
+- [ ] Test with static IP: create VLAN 200, uncheck DHCP, enter `10.0.200.1/24`
+- [ ] Verify the interface gets the static IP:
+  ```bash
+  ip addr show vlan200
+  ```
+- [ ] Clean up by deleting the test VLANs
+
 ---
 
 ## Upgrading Truebuntu During Testing
@@ -260,6 +416,13 @@ sudo docker compose up -d --build
 | SMB shares | Clients can read/write after share recreation |
 | Web UI | All Truebuntu pages load, no console errors |
 | SMART | Disk health data accessible |
+| Alert services | Test notifications arrive on all configured services (email, Slack, Pushover, webhook) |
+| Alert categories | Simulated failures (cron, rsync, replication, ZFS) trigger alerts to all enabled services |
+| Alert dedup | Pool degraded/capacity alerts fire once, not on every dashboard poll |
+| Cloud credentials | Create, test, and delete credentials for at least 3 provider types |
+| Cloud sync buckets | Bucket dropdown auto-populates when selecting a credential |
+| CronPicker | Presets and custom mode work on all 5 task pages; saved schedules persist |
+| VLANs | Create and delete VLANs; netplan applied correctly; interfaces visible on host |
 
 ## Notes
 
