@@ -23,7 +23,7 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 
 **Monitoring** -- SMART health and scheduled tests, disk temperatures, enclosure view with pool mapping, per-thread CPU usage, memory and ZFS ARC tracking
 
-**Tasks** -- Cron jobs, rsync backups (local and SSH), resilver priority windows, init/shutdown scripts, cloud sync via rclone, background job queue with cancellation
+**Tasks** -- Cron jobs, rsync backups (local and SSH), resilver priority windows, init/shutdown scripts, cloud sync via rclone (push/pull, sync/copy/move, bandwidth limits, exclude patterns), background job queue with cancellation
 
 **Networking** -- Interface configuration (DHCP/static), network bonds (LACP, active-backup, balance-xor, etc.), DNS, static routes, IPMI configuration
 
