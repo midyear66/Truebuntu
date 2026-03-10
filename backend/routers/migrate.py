@@ -80,34 +80,32 @@ async def apply_truenas_config(
                 errors.append(f"Skipped user '{uname}': invalid username")
                 skipped += 1
                 continue
-            # Check if user already exists
+            # Check if user already exists on the host
             check = run(["getent", "passwd", linux_name])
-            if check.ok:
-                errors.append(f"Skipped user '{linux_name}': already exists")
-                skipped += 1
-                continue
-            # Create the user's primary group if GID specified
-            gid = user.get("gid")
-            if gid and gid >= 1000:
-                gcheck = run(["getent", "group", str(gid)])
-                if not gcheck.ok:
-                    run(["groupadd", "-g", str(gid), linux_name])
-            # Create system user
-            cmd = ["useradd", "-u", str(uid), "-m"]
-            if gid and gid >= 1000:
-                cmd.extend(["-g", str(gid)])
-            cmd.append(linux_name)
-            result = run(cmd)
-            if not result.ok:
-                errors.append(f"Failed to create user '{linux_name}': {result.stderr.strip()}")
-                skipped += 1
-                continue
+            user_existed = check.ok
+            if not user_existed:
+                # Create the user's primary group if GID specified
+                gid = user.get("gid")
+                if gid and gid >= 1000:
+                    gcheck = run(["getent", "group", str(gid)])
+                    if not gcheck.ok:
+                        run(["groupadd", "-g", str(gid), linux_name])
+                # Create system user
+                cmd = ["useradd", "-u", str(uid), "-m"]
+                if gid and gid >= 1000:
+                    cmd.extend(["-g", str(gid)])
+                cmd.append(linux_name)
+                result = run(cmd)
+                if not result.ok:
+                    errors.append(f"Failed to create user '{linux_name}': {result.stderr.strip()}")
+                    skipped += 1
+                    continue
             # Add to additional groups if they exist on the system
             for grp in user.get("groups", []):
                 grp_check = run(["getent", "group", grp])
                 if grp_check.ok:
                     run(["usermod", "-aG", grp, linux_name])
-            # Set password if provided
+            # Set password and SMB account if provided
             pw = passwords.get(uname) or passwords.get(linux_name)
             if pw and len(pw) >= 8:
                 proc = subprocess.run(
@@ -116,7 +114,7 @@ async def apply_truenas_config(
                     capture_output=True, text=True, timeout=10,
                 )
                 if proc.returncode != 0:
-                    errors.append(f"User '{linux_name}' created but password set failed")
+                    errors.append(f"User '{linux_name}': password set failed")
                 # Also create SMB user if they had SMB in TrueNAS
                 if user.get("has_smb", True):
                     proc = subprocess.run(
@@ -125,7 +123,9 @@ async def apply_truenas_config(
                         capture_output=True, text=True, timeout=10,
                     )
                     if proc.returncode != 0:
-                        errors.append(f"User '{linux_name}' created but SMB account failed")
+                        errors.append(f"User '{linux_name}': SMB account failed")
+            elif user_existed:
+                errors.append(f"User '{linux_name}': system user exists, provide a password to configure SMB")
             created += 1
         results["users"] = created
         if skipped:
