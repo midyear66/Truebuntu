@@ -20,15 +20,9 @@ const EMPTY_TASK = {
 }
 
 export default function CloudSync() {
-  // Remotes state
   const [remotes, setRemotes] = useState([])
-  const [selectedRemote, setSelectedRemote] = useState(null)
-  const [remoteDetail, setRemoteDetail] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showCreateRemote, setShowCreateRemote] = useState(false)
-  const [remoteForm, setRemoteForm] = useState({ name: '', type: 'b2', config: { account: '', key: '' } })
   const [error, setError] = useState('')
-  const [testing, setTesting] = useState(null)
 
   // Tasks state
   const [tasks, setTasks] = useState([])
@@ -43,7 +37,7 @@ export default function CloudSync() {
       const res = await api.get('/rclone/remotes')
       setRemotes(res.data)
     } catch (err) {
-      setError('Failed to load remotes')
+      // Remotes list is optional — task form dropdown will just be empty
     } finally {
       setLoading(false)
     }
@@ -61,52 +55,6 @@ export default function CloudSync() {
   }
 
   useEffect(() => { loadRemotes(); loadTasks() }, [])
-
-  // Remote CRUD
-  const viewRemote = async (name) => {
-    setSelectedRemote(name)
-    try {
-      const res = await api.get(`/rclone/remotes/${name}`)
-      setRemoteDetail(res.data)
-    } catch (err) {
-      setRemoteDetail(null)
-    }
-  }
-
-  const createRemote = async (e) => {
-    e.preventDefault()
-    try {
-      await api.post('/rclone/remotes', remoteForm)
-      setShowCreateRemote(false)
-      setRemoteForm({ name: '', type: 'b2', config: { account: '', key: '' } })
-      loadRemotes()
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Create failed')
-    }
-  }
-
-  const deleteRemote = async (name) => {
-    if (!confirm(`Delete remote "${name}"?`)) return
-    try {
-      await api.delete(`/rclone/remotes/${name}`)
-      if (selectedRemote === name) { setSelectedRemote(null); setRemoteDetail(null) }
-      loadRemotes()
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Delete failed')
-    }
-  }
-
-  const testRemote = async (name) => {
-    setTesting(name)
-    try {
-      const res = await api.post(`/rclone/remotes/${name}/test`)
-      alert(res.data.success ? 'Connection successful!' : `Failed: ${res.data.error}`)
-    } catch (err) {
-      alert('Test failed')
-    } finally {
-      setTesting(null)
-    }
-  }
 
   // Task CRUD
   const openCreateTask = () => {
@@ -379,64 +327,6 @@ export default function CloudSync() {
         </div>
       </div>
 
-      {/* Remotes */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Remotes</h3>
-          <button onClick={() => setShowCreateRemote(!showCreateRemote)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-            Add Remote
-          </button>
-        </div>
-
-        {showCreateRemote && (
-          <form onSubmit={createRemote} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-              <input type="text" value={remoteForm.name} onChange={e => setRemoteForm({...remoteForm, name: e.target.value})} placeholder="Remote name" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" required />
-              <select value={remoteForm.type} onChange={e => setRemoteForm({...remoteForm, type: e.target.value})} className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100">
-                <option value="b2">Backblaze B2</option>
-                <option value="s3">Amazon S3</option>
-                <option value="sftp">SFTP</option>
-                <option value="local">Local</option>
-              </select>
-              <input type="text" value={remoteForm.config.account || ''} onChange={e => setRemoteForm({...remoteForm, config: {...remoteForm.config, account: e.target.value}})} placeholder="Account / Access Key" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
-              <input type="password" value={remoteForm.config.key || ''} onChange={e => setRemoteForm({...remoteForm, config: {...remoteForm.config, key: e.target.value}})} placeholder="Key / Secret" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
-            </div>
-            <button type="submit" className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">Create Remote</button>
-          </form>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-            {remotes.length === 0 ? (
-              <div className="p-4 text-sm text-gray-400 dark:text-gray-500">No remotes configured</div>
-            ) : remotes.map(name => (
-              <div key={name} className={`p-4 border-b dark:border-gray-700 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedRemote === name ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`} onClick={() => viewRemote(name)}>
-                <span className="font-medium">{name}</span>
-                <div className="flex gap-2">
-                  <button onClick={(e) => { e.stopPropagation(); testRemote(name) }} disabled={testing === name} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs">
-                    {testing === name ? 'Testing...' : 'Test'}
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); deleteRemote(name) }} className="text-red-600 hover:text-red-800 text-xs">Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {remoteDetail && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-              <h3 className="text-lg font-semibold mb-3">{remoteDetail.name}</h3>
-              <div className="space-y-2">
-                {Object.entries(remoteDetail.config).map(([k, v]) => (
-                  <div key={k} className="flex">
-                    <span className="text-sm text-gray-500 dark:text-gray-400 w-32">{k}</span>
-                    <span className="text-sm font-mono">{v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

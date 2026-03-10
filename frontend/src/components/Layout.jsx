@@ -12,6 +12,7 @@ const NAV_ITEMS = [
     { path: '/app-users', label: 'App users' },
     { path: '/smb-users', label: 'SMB users' },
     { path: '/system-users', label: 'System users & groups' },
+    { path: '/cloud-credentials', label: 'Cloud credentials' },
   ]},
   { label: 'System', icon: '\u{2699}\uFE0F', admin: true, children: [
     { path: '/settings', label: 'Settings' },
