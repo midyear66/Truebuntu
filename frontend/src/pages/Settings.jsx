@@ -578,7 +578,7 @@ export default function Settings() {
                     <tbody>
                       {(preview.smb_shares || []).map(s => (
                         <tr key={s.name} className="border-b dark:border-gray-700 last:border-0">
-                          <td className="py-1 pr-4 font-medium">{s.name}</td>
+                          <td className="py-1 pr-4 font-medium">{s.name}{s.is_home && <span className="ml-1 text-xs text-blue-500" title="Will be imported as Samba [homes] share">[homes]</span>}</td>
                           <td className="py-1 pr-4 font-mono text-xs">{s.path}</td>
                           <td className="py-1 pr-4 text-gray-500 dark:text-gray-400">{s.comment || '-'}</td>
                           <td className="py-1 pr-4 text-xs">{s.read_only ? 'Yes' : 'No'}</td>
