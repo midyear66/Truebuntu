@@ -196,7 +196,7 @@ def start_scrub(pool: str, username: str = Depends(get_current_admin)):
         if returncode != 0:
             from backend.utils.email import send_alert
             send_alert(
-                "scrub_failures",
+                "zfs_alerts",
                 f"Scrub failed on pool '{pool}'",
                 f"Scrub on pool '{pool}' exited with code {returncode}.\n\n{stderr or stdout or 'No output'}",
             )

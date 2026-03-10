@@ -309,7 +309,7 @@ def _check_pool_alerts(pools: list[dict]):
         if health in ("DEGRADED", "FAULTED", "UNAVAIL"):
             if "degraded" not in alerted:
                 send_alert(
-                    "pool_degraded",
+                    "zfs_alerts",
                     f"Pool '{name}' is {health}",
                     f"ZFS pool '{name}' has entered {health} state. "
                     f"Check disk health and pool status immediately.\n\n"
@@ -328,7 +328,7 @@ def _check_pool_alerts(pools: list[dict]):
         if cap >= CAPACITY_THRESHOLD:
             if "capacity" not in alerted:
                 send_alert(
-                    "pool_capacity",
+                    "zfs_alerts",
                     f"Pool '{name}' is {cap}% full",
                     f"ZFS pool '{name}' has reached {cap}% capacity. "
                     f"ZFS performance degrades significantly above 80%. "
