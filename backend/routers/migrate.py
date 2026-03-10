@@ -137,6 +137,7 @@ async def apply_truenas_config(
         skipped = 0
         existing = parse_smb_conf()
         existing_names = {n.lower() for n in existing}
+        pool_mounts = get_pool_mountpoints()
         for share in parsed["smb_shares"]:
             name = share.get("name", "")
             path = share.get("path", "")
@@ -144,7 +145,8 @@ async def apply_truenas_config(
                 errors.append(f"Skipped share '{name}': invalid name")
                 skipped += 1
                 continue
-            pool_mounts = get_pool_mountpoints()
+            # Remap TrueNAS /mnt/<pool>/... paths to actual pool mountpoints
+            path = _remap_truenas_path(path, pool_mounts)
             path_valid = (
                 any(path.startswith(p) for p in STATIC_PATH_PREFIXES)
                 or any(path.startswith(m) for m in pool_mounts)
@@ -525,6 +527,31 @@ def _parse_truenas_tar(tar_bytes: bytes) -> dict:
             conn.close()
 
     return parsed
+
+
+def _remap_truenas_path(path: str, pool_mounts: set[str]) -> str:
+    """Remap TrueNAS /mnt/<pool>/... paths to actual ZFS mountpoints.
+
+    TrueNAS mounts pools at /mnt/<pool>, but on Ubuntu the pool may mount
+    elsewhere (e.g., /<pool>). Match the pool name from the TrueNAS path
+    against actual pool mountpoints on this system.
+    """
+    if not path.startswith("/mnt/"):
+        return path
+    # Extract pool name: /mnt/<pool>/rest/of/path -> pool = <pool>
+    parts = path[5:].split("/", 1)  # strip "/mnt/" and split
+    pool_name = parts[0]
+    remainder = parts[1] if len(parts) > 1 else ""
+    # Find a matching pool mountpoint
+    for mount in pool_mounts:
+        # mount has trailing slash, e.g., "/Shares/" or "/tank/"
+        mount_name = mount.strip("/").split("/")[-1]
+        if mount_name == pool_name:
+            remapped = mount + remainder
+            logger.info(f"Remapped TrueNAS path '{path}' -> '{remapped}'")
+            return remapped
+    # No match found, return original
+    return path
 
 
 def _is_homes_share(name: str, path: str) -> bool:
