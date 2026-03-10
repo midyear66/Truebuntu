@@ -191,6 +191,16 @@ def start_scrub(pool: str, username: str = Depends(get_current_admin)):
         raise HTTPException(status_code=400, detail="Invalid pool name")
 
     from backend.utils.jobs import JobManager
+
+    def on_scrub_complete(job_id, status, stdout, stderr, returncode):
+        if returncode != 0:
+            from backend.utils.email import send_alert
+            send_alert(
+                "scrub_failures",
+                f"Scrub failed on pool '{pool}'",
+                f"Scrub on pool '{pool}' exited with code {returncode}.\n\n{stderr or stdout or 'No output'}",
+            )
+
     mgr = JobManager()
     try:
         job_id = mgr.submit(
@@ -200,6 +210,7 @@ def start_scrub(pool: str, username: str = Depends(get_current_admin)):
             started_by=username,
             cmd=["zpool", "scrub", pool],
             timeout=60,
+            on_complete=on_scrub_complete,
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))

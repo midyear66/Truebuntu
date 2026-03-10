@@ -12,6 +12,11 @@ from backend.utils.zfs import parse_zpool_list, parse_zpool_status, parse_zfs_li
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)])
 
+# Track which alerts have been sent to avoid spamming on every dashboard poll.
+# Resets when the condition clears (pool goes back to ONLINE, capacity drops).
+_alerted_pools: dict[str, set[str]] = {}  # pool_name -> set of alert types sent
+CAPACITY_THRESHOLD = 80
+
 NSENTER = ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--"]
 
 
@@ -284,7 +289,57 @@ def _get_pool_details() -> list[dict]:
         pool["scan"] = status.get("scan", "")
         pool["scan_progress"] = status.get("scan_progress")
 
+    _check_pool_alerts(pools)
     return pools
+
+
+def _check_pool_alerts(pools: list[dict]):
+    """Send alerts for degraded pools and high capacity, with dedup."""
+    from backend.utils.email import send_alert
+
+    for pool in pools:
+        name = pool.get("name", "")
+        if not name:
+            continue
+
+        alerted = _alerted_pools.setdefault(name, set())
+        health = pool.get("health", "").upper()
+
+        # Pool health alerts (DEGRADED, FAULTED, UNAVAIL)
+        if health in ("DEGRADED", "FAULTED", "UNAVAIL"):
+            if "degraded" not in alerted:
+                send_alert(
+                    "pool_degraded",
+                    f"Pool '{name}' is {health}",
+                    f"ZFS pool '{name}' has entered {health} state. "
+                    f"Check disk health and pool status immediately.\n\n"
+                    f"Disks with errors: {pool.get('disks_with_errors', 0)}",
+                )
+                alerted.add("degraded")
+        else:
+            alerted.discard("degraded")
+
+        # Capacity alerts (>= 80%)
+        try:
+            cap = int(pool.get("capacity", "0").rstrip("%"))
+        except (ValueError, AttributeError):
+            cap = 0
+
+        if cap >= CAPACITY_THRESHOLD:
+            if "capacity" not in alerted:
+                send_alert(
+                    "pool_capacity",
+                    f"Pool '{name}' is {cap}% full",
+                    f"ZFS pool '{name}' has reached {cap}% capacity. "
+                    f"ZFS performance degrades significantly above 80%. "
+                    f"Consider expanding the pool or removing data.\n\n"
+                    f"Size: {pool.get('size', 'N/A')}, "
+                    f"Used: {pool.get('allocated', 'N/A')}, "
+                    f"Free: {pool.get('free', 'N/A')}",
+                )
+                alerted.add("capacity")
+        else:
+            alerted.discard("capacity")
 
 
 def _has_errors(node: dict) -> bool:
