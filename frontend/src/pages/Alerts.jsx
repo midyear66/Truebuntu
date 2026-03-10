@@ -302,7 +302,6 @@ export default function Alerts() {
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-4">Alert Categories</h3>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Enable categories to receive alerts via email and all configured services above.</p>
         <div className="space-y-3 mb-4">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mt-1">Tasks</p>
           <label className="flex items-center gap-2 text-sm dark:text-gray-300">
             <input type="checkbox" checked={categories.cron_failures || false} onChange={e => setCategories({...categories, cron_failures: e.target.checked})} />
             Cron Job Failures
@@ -319,7 +318,6 @@ export default function Alerts() {
             <input type="checkbox" checked={categories.replication_failures || false} onChange={e => setCategories({...categories, replication_failures: e.target.checked})} />
             Replication Failures
           </label>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mt-3">ZFS / Storage</p>
           <label className="flex items-center gap-2 text-sm dark:text-gray-300">
             <input type="checkbox" checked={categories.zfs_alerts || false} onChange={e => setCategories({...categories, zfs_alerts: e.target.checked})} />
             ZFS Failures
