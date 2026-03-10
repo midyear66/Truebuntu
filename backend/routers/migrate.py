@@ -153,6 +153,34 @@ async def apply_truenas_config(
                 errors.append(f"Skipped share '{name}': invalid path '{path}'")
                 skipped += 1
                 continue
+            # Detect TrueNAS homes share and create a Samba [homes] section
+            is_home = share.get("is_home", False) or _is_homes_share(name, path)
+            if is_home:
+                if "homes" in existing_names:
+                    errors.append(f"Skipped homes share '{name}': [homes] already exists")
+                    skipped += 1
+                    continue
+                params = {
+                    "browseable": "no",
+                    "read only": "no",
+                    "create mask": "0664",
+                    "directory mask": "0775",
+                    "valid users": "%S",
+                    "path": path + "/%S",
+                }
+                if share.get("recycle_bin"):
+                    params["vfs objects"] = "recycle"
+                    params["recycle:repository"] = ".recycle/%U"
+                    params["recycle:keeptree"] = "yes"
+                    params["recycle:versions"] = "yes"
+                try:
+                    add_share("homes", params)
+                    created += 1
+                    logger.info(f"Created [homes] share from TrueNAS '{name}' (path: {path})")
+                except Exception as e:
+                    errors.append(f"Failed to add homes share: {e}")
+                    skipped += 1
+                continue
             if name.lower() in existing_names:
                 errors.append(f"Skipped share '{name}': already exists")
                 skipped += 1
@@ -385,13 +413,25 @@ def _parse_truenas_tar(tar_bytes: bytes) -> dict:
 
             # SMB shares
             try:
-                rows = conn.execute(
-                    "SELECT cifs_name, cifs_path, cifs_comment, cifs_ro, cifs_browsable, "
-                    "cifs_guestok, cifs_recyclebin, cifs_timemachine, cifs_enabled, "
-                    "cifs_hostsallow, cifs_hostsdeny, cifs_auxsmbconf "
-                    "FROM sharing_cifs_share"
-                ).fetchall()
+                # Try with cifs_home column first (TrueNAS Core homes share flag)
+                try:
+                    rows = conn.execute(
+                        "SELECT cifs_name, cifs_path, cifs_comment, cifs_ro, cifs_browsable, "
+                        "cifs_guestok, cifs_recyclebin, cifs_timemachine, cifs_enabled, "
+                        "cifs_hostsallow, cifs_hostsdeny, cifs_auxsmbconf, cifs_home "
+                        "FROM sharing_cifs_share"
+                    ).fetchall()
+                    has_home_col = True
+                except sqlite3.OperationalError:
+                    rows = conn.execute(
+                        "SELECT cifs_name, cifs_path, cifs_comment, cifs_ro, cifs_browsable, "
+                        "cifs_guestok, cifs_recyclebin, cifs_timemachine, cifs_enabled, "
+                        "cifs_hostsallow, cifs_hostsdeny, cifs_auxsmbconf "
+                        "FROM sharing_cifs_share"
+                    ).fetchall()
+                    has_home_col = False
                 for row in rows:
+                    is_home = bool(row["cifs_home"]) if has_home_col else False
                     parsed["smb_shares"].append({
                         "name": row["cifs_name"],
                         "path": row["cifs_path"] or "",
@@ -405,6 +445,7 @@ def _parse_truenas_tar(tar_bytes: bytes) -> dict:
                         "hosts_allow": row["cifs_hostsallow"] or "",
                         "hosts_deny": row["cifs_hostsdeny"] or "",
                         "aux_params": row["cifs_auxsmbconf"] or "",
+                        "is_home": is_home,
                     })
             except sqlite3.OperationalError:
                 pass
@@ -484,6 +525,18 @@ def _parse_truenas_tar(tar_bytes: bytes) -> dict:
             conn.close()
 
     return parsed
+
+
+def _is_homes_share(name: str, path: str) -> bool:
+    """Detect if a TrueNAS share is a homes share by name or path pattern."""
+    name_lower = name.lower()
+    path_lower = path.lower()
+    # Common TrueNAS homes share names and path patterns
+    if name_lower in ("homes", "userhomes", "user homes", "home"):
+        return True
+    if path_lower.endswith("/homes") or path_lower.endswith("/home"):
+        return True
+    return False
 
 
 def _parse_truenas_schedule(row, prefix="task_") -> str:
