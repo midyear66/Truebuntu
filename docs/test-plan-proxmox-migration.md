@@ -222,7 +222,7 @@ If a new version is pushed to the repository while testing is in progress:
 ssh sanford@<vm-ip>
 
 # Pull the latest changes
-cd /opt/truebuntu
+cd ~/truebuntu
 sudo git pull
 
 # Rebuild and restart the container (data volume is preserved)
@@ -234,7 +234,7 @@ sudo docker compose up -d --build
 If you need to pin a specific version or branch:
 
 ```bash
-cd /opt/truebuntu
+cd ~/truebuntu
 sudo git fetch --all
 sudo git checkout <branch-or-tag>
 sudo docker compose up -d --build

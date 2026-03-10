@@ -7,8 +7,13 @@ set -euo pipefail
 # Configuration — edit these to customize the install
 # =============================================================================
 REPO_URL="https://github.com/midyear66/Truebuntu.git"
-INSTALL_DIR="/opt/truebuntu"
+INSTALL_DIR="$(pwd)/truebuntu"
 MIN_RAM_KB=8000000  # 8 GB in kB
+
+# Detect the real user behind sudo (fall back to root if run directly)
+INSTALL_USER="${SUDO_USER:-root}"
+INSTALL_UID=$(id -u "$INSTALL_USER")
+INSTALL_GID=$(id -g "$INSTALL_USER")
 
 # =============================================================================
 # Color helpers (fall back to plain text when not on a terminal)
@@ -83,6 +88,8 @@ preflight() {
         fatal "Insufficient RAM: ${mem_gb} GB detected, minimum 8 GB required."
     fi
     info "RAM: ${mem_gb} GB"
+    info "Install user: $INSTALL_USER (UID=$INSTALL_UID, GID=$INSTALL_GID)"
+    info "Install directory: $INSTALL_DIR"
 
     echo ""
     echo "${BOLD}Pre-flight checks passed.${RESET}"
@@ -135,7 +142,9 @@ clone_repo() {
         info "Cloning repository to $INSTALL_DIR"
         git clone "$REPO_URL" "$INSTALL_DIR"
     fi
-    info "Repository ready at $INSTALL_DIR"
+    # Set ownership to the calling user so they can manage the install
+    chown -R "$INSTALL_UID:$INSTALL_GID" "$INSTALL_DIR"
+    info "Repository ready at $INSTALL_DIR (owned by $INSTALL_USER [$INSTALL_UID:$INSTALL_GID])"
 }
 
 # =============================================================================
@@ -155,9 +164,12 @@ generate_config() {
 SECRET_KEY=$secret
 DATABASE_PATH=/data/nas.db
 LOG_LEVEL=info
+PUID=$INSTALL_UID
+PGID=$INSTALL_GID
 EOF
 
-    info "Generated $env_file with random secret key"
+    chown "$INSTALL_UID:$INSTALL_GID" "$env_file"
+    info "Generated $env_file with random secret key (PUID=$INSTALL_UID, PGID=$INSTALL_GID)"
 }
 
 # =============================================================================
@@ -207,6 +219,7 @@ post_install() {
     echo ""
     echo "  ${BOLD}Access URL:${RESET}    http://${ip}"
     echo "  ${BOLD}Install dir:${RESET}   ${INSTALL_DIR}"
+    echo "  ${BOLD}Owner:${RESET}         ${INSTALL_USER} (${INSTALL_UID}:${INSTALL_GID})"
     echo ""
     echo "  Create your admin account on first visit."
     echo ""
