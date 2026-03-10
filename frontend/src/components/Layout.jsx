@@ -19,7 +19,7 @@ const NAV_ITEMS = [
     { path: '/enclosures', label: 'Enclosures' },
     { path: '/updates', label: 'Updates' },
     { path: '/logs', label: 'System logs' },
-    { path: '/alerts', label: 'Email alerts' },
+    { path: '/alerts', label: 'Alerts' },
   ]},
   { path: '/jobs', label: 'Jobs', icon: '\u{23F3}' },
   { label: 'Network', icon: '\u{1F310}', admin: true, children: [
