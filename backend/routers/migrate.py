@@ -109,12 +109,12 @@ async def apply_truenas_config(
             pw = passwords.get(uname) or passwords.get(linux_name)
             if pw and len(pw) >= 8:
                 proc = subprocess.run(
-                    ["chpasswd"],
+                    ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
                     input=f"{linux_name}:{pw}\n",
                     capture_output=True, text=True, timeout=10,
                 )
                 if proc.returncode != 0:
-                    errors.append(f"User '{linux_name}': password set failed")
+                    errors.append(f"User '{linux_name}': password set failed: {proc.stderr.strip()}")
                 # Also create SMB user if they had SMB in TrueNAS
                 if user.get("has_smb", True):
                     proc = subprocess.run(

@@ -101,7 +101,7 @@ def create_user(req: UserCreateRequest, username: str = Depends(get_current_admi
         # Fall back to chpasswd
         import subprocess
         proc = subprocess.run(
-            ["chpasswd"],
+            ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
             input=f"{req.username}:{req.password}\n",
             capture_output=True, text=True, timeout=10,
         )

@@ -318,7 +318,7 @@ def create_app_user(req: AppUserCreateRequest, admin: str = Depends(get_current_
         if not smb_error:
             # Set system password
             proc = subprocess.run(
-                ["chpasswd"],
+                ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
                 input=f"{linux_name}:{req.password}\n",
                 capture_output=True, text=True, timeout=10,
             )
