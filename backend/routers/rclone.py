@@ -81,12 +81,9 @@ def delete_remote(name: str, username: str = Depends(get_current_admin)):
 
 @router.post("/remotes/{name}/test")
 def test_remote(name: str):
-    result = run(["rclone", "about", f"{name}:", "--config", RCLONE_CONFIG, "--json"], timeout=30)
+    # Use lsd (list directories) as a universal connectivity test —
+    # "about" is not supported by all providers (e.g. Backblaze B2)
+    result = run(["rclone", "lsd", f"{name}:", "--config", RCLONE_CONFIG, "--max-depth", "1"], timeout=30)
     if not result.ok:
         return {"success": False, "error": result.stderr.strip()}
-
-    try:
-        info = json.loads(result.stdout)
-        return {"success": True, "info": info}
-    except json.JSONDecodeError:
-        return {"success": True, "raw": result.stdout}
+    return {"success": True}
