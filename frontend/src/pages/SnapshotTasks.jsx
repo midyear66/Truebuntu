@@ -1,19 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
-
-const SCHEDULE_PRESETS = [
-  { label: 'Hourly', value: '0 * * * *' },
-  { label: 'Daily at midnight', value: '0 0 * * *' },
-  { label: 'Daily at noon', value: '0 12 * * *' },
-  { label: 'Weekly — Sunday midnight', value: '0 0 * * 0' },
-  { label: 'Monthly — 1st at midnight', value: '0 0 1 * *' },
-  { label: 'Custom', value: '__custom__' },
-]
-
-function detectPreset(cron) {
-  const match = SCHEDULE_PRESETS.find(p => p.value === cron)
-  return match ? match.value : '__custom__'
-}
+import CronPicker from '../components/CronPicker'
 
 function excludeToText(raw) {
   try {
@@ -44,7 +31,6 @@ export default function SnapshotTasks() {
     retention_unit: 'count', naming_schema: 'auto-%Y-%m-%d_%H-%M',
     recursive: false, exclude: '', enabled: true, allow_empty: true,
   })
-  const [schedulePreset, setSchedulePreset] = useState('0 * * * *')
   const [error, setError] = useState('')
 
   const load = async () => {
@@ -68,7 +54,6 @@ export default function SnapshotTasks() {
       retention_unit: 'count', naming_schema: 'auto-%Y-%m-%d_%H-%M',
       recursive: false, exclude: '', enabled: true, allow_empty: true,
     })
-    setSchedulePreset('0 * * * *')
     setShowForm(false)
     setEditId(null)
   }
@@ -100,8 +85,6 @@ export default function SnapshotTasks() {
   }
 
   const startEdit = (p) => {
-    const preset = detectPreset(p.schedule)
-    setSchedulePreset(preset)
     setForm({
       name: p.name, dataset: p.dataset, schedule: p.schedule,
       retention_count: p.retention_count, retention_unit: p.retention_unit || 'count',
@@ -123,12 +106,6 @@ export default function SnapshotTasks() {
     }
   }
 
-  const handlePresetChange = (val) => {
-    setSchedulePreset(val)
-    if (val !== '__custom__') {
-      setForm(f => ({ ...f, schedule: val }))
-    }
-  }
 
   useEffect(() => { load() }, [])
 
@@ -218,15 +195,7 @@ export default function SnapshotTasks() {
 
               <div>
                 <label className={labelCls}>Schedule</label>
-                <select value={schedulePreset} onChange={e => handlePresetChange(e.target.value)} className={inputCls}>
-                  {SCHEDULE_PRESETS.map(p => (
-                    <option key={p.value} value={p.value}>{p.label}{p.value !== '__custom__' ? ` (${p.value})` : ''}</option>
-                  ))}
-                </select>
-                {schedulePreset === '__custom__' && (
-                  <input type="text" value={form.schedule} onChange={e => setForm({...form, schedule: e.target.value})} placeholder="0 * * * *" className={inputCls + ' font-mono mt-2'} required />
-                )}
-                <p className={helpCls}>When to run the snapshot task (cron format)</p>
+                <CronPicker value={form.schedule} onChange={v => setForm({...form, schedule: v})} />
               </div>
 
               <div>

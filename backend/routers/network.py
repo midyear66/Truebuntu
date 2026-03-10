@@ -553,6 +553,113 @@ def delete_bond(name: str):
     return {"message": f"Bond {name} deleted"}
 
 
+# --- VLANs ---
+
+class VlanCreate(BaseModel):
+    name: str | None = None
+    id: int
+    link: str
+    dhcp: bool = True
+    addresses: list[str] | None = None
+    gateway: str | None = None
+    mtu: int | None = None
+    dns_servers: list[str] | None = None
+
+
+@router.get("/vlans")
+def list_vlans():
+    data = _read_netplan()
+    vlans = data.get("network", {}).get("vlans", {})
+    ifaces = _build_iface_list()
+    iface_map = {i["name"]: i for i in ifaces}
+    result = []
+    for name, cfg in vlans.items():
+        iface = iface_map.get(name, {})
+        addrs = cfg.get("addresses", [])
+        if cfg.get("dhcp4") and not addrs:
+            addrs = iface.get("addresses", [])
+        result.append({
+            "name": name,
+            "id": cfg.get("id"),
+            "link": cfg.get("link", ""),
+            "addresses": addrs,
+            "state": iface.get("state", "unknown"),
+            "dhcp": cfg.get("dhcp4", False),
+            "gateway": _extract_gateway(cfg),
+            "mtu": cfg.get("mtu"),
+            "dns_servers": cfg.get("nameservers", {}).get("addresses", []),
+        })
+    return result
+
+
+@router.post("/vlans")
+def create_vlan(body: VlanCreate, username: str = Depends(get_current_admin)):
+    if body.id < 1 or body.id > 4094:
+        raise HTTPException(status_code=400, detail="VLAN ID must be between 1 and 4094")
+    _validate_iface_name(body.link)
+    if not body.dhcp:
+        _validate_addresses(body.addresses)
+        _validate_ip(body.gateway, "gateway")
+    _validate_mtu(body.mtu)
+    _validate_dns(body.dns_servers)
+
+    vlan_name = body.name or f"vlan{body.id}"
+    if not IFACE_RE.match(vlan_name):
+        raise HTTPException(status_code=400, detail=f"Invalid VLAN name: {vlan_name}")
+
+    data = _read_netplan()
+    net = data.setdefault("network", {"version": 2})
+    net.setdefault("version", 2)
+    vlans = net.get("vlans", {})
+    if vlan_name in vlans:
+        raise HTTPException(status_code=409, detail=f"VLAN {vlan_name} already exists")
+
+    vlan_cfg = {
+        "id": body.id,
+        "link": body.link,
+    }
+
+    if body.dhcp:
+        vlan_cfg["dhcp4"] = True
+    else:
+        vlan_cfg["dhcp4"] = False
+        if body.addresses:
+            vlan_cfg["addresses"] = body.addresses
+        if body.gateway:
+            vlan_cfg["routes"] = [{"to": "default", "via": body.gateway}]
+        if body.dns_servers:
+            vlan_cfg["nameservers"] = {"addresses": body.dns_servers}
+
+    if body.mtu:
+        vlan_cfg["mtu"] = body.mtu
+
+    net.setdefault("vlans", {})[vlan_name] = vlan_cfg
+    _write_netplan(data)
+    _apply_netplan()
+
+    logger.info(f"User '{username}' created VLAN {vlan_name} (id={body.id}, link={body.link})")
+    return {"message": f"VLAN {vlan_name} created"}
+
+
+@router.delete("/vlans/{name}")
+def delete_vlan(name: str, username: str = Depends(get_current_admin)):
+    _validate_iface_name(name)
+    data = _read_netplan()
+    vlans = data.get("network", {}).get("vlans", {})
+    if name not in vlans:
+        raise HTTPException(status_code=404, detail=f"VLAN {name} not found")
+
+    del vlans[name]
+    if not vlans:
+        data["network"].pop("vlans", None)
+
+    _write_netplan(data)
+    _apply_netplan()
+
+    logger.info(f"User '{username}' deleted VLAN {name}")
+    return {"message": f"VLAN {name} deleted"}
+
+
 # --- DNS ---
 
 @router.get("/dns")

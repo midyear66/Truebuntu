@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import CronPicker from '../components/CronPicker'
 import useJobPoller from '../useJobPoller'
 
 export default function CronJobs() {
@@ -89,7 +90,9 @@ export default function CronJobs() {
         <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Job name" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" required />
-            <input type="text" value={form.schedule} onChange={e => setForm({...form, schedule: e.target.value})} placeholder="Cron schedule (e.g. 0 * * * *)" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm font-mono dark:bg-gray-700 dark:text-gray-100" required />
+            <div className="md:col-span-2">
+              <CronPicker value={form.schedule} onChange={v => setForm({...form, schedule: v})} />
+            </div>
             <input type="text" value={form.user} onChange={e => setForm({...form, user: e.target.value})} placeholder="Run as user" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
             <input type="text" value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Description (optional)" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
           </div>

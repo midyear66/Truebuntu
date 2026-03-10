@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "/data/nas.db")
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -308,6 +308,24 @@ def init_db():
             db.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (9,),
+            )
+            db.commit()
+
+        if current_version < 10:
+            logger.info("Applying schema v10 — alert services")
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS alert_services (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    config TEXT NOT NULL DEFAULT '{}',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+            """)
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (10,),
             )
             db.commit()
 
