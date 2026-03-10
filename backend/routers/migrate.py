@@ -125,7 +125,7 @@ async def apply_truenas_config(
                     if proc.returncode != 0:
                         errors.append(f"User '{linux_name}': SMB account failed")
             elif user_existed:
-                errors.append(f"User '{linux_name}': system user exists, provide a password to configure SMB")
+                errors.append(f"User '{linux_name}': already exists on host — set a password in the table above to configure SMB access")
             created += 1
         results["users"] = created
         if skipped:
