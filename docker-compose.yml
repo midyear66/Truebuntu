@@ -13,7 +13,7 @@ services:
       - /var/lib/samba:/var/lib/samba
       - /etc/exports:/etc/exports
       - /etc/passwd:/etc/passwd
-      - /etc/shadow:/etc/shadow:ro
+      - /etc/shadow:/etc/shadow
       - /etc/group:/etc/group
       - /etc/gshadow:/etc/gshadow:ro
       - /etc/chrony:/etc/chrony
