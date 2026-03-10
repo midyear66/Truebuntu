@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import CronPicker from '../components/CronPicker'
 import useJobPoller from '../useJobPoller'
 
 export default function SmartTests() {
@@ -107,7 +108,9 @@ export default function SmartTests() {
               <option value="conveyance">Conveyance</option>
               <option value="offline">Offline</option>
             </select>
-            <input type="text" value={form.schedule} onChange={e => setForm({...form, schedule: e.target.value})} placeholder="Cron schedule" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm font-mono dark:bg-gray-700 dark:text-gray-100" />
+            <div className="md:col-span-2">
+              <CronPicker value={form.schedule} onChange={v => setForm({...form, schedule: v})} />
+            </div>
           </div>
           <div className="mb-3">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Disks</label>

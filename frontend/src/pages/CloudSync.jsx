@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
 import useJobPoller from '../useJobPoller'
+import CronPicker from '../components/CronPicker'
 
 const EMPTY_TASK = {
   name: '',
@@ -257,10 +258,9 @@ export default function CloudSync() {
                 <input type="text" value={taskForm.local_path} onChange={e => tf('local_path', e.target.value)}
                   placeholder="/mnt/pool/dataset" className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" required />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Schedule (cron)</label>
-                <input type="text" value={taskForm.schedule} onChange={e => tf('schedule', e.target.value)}
-                  placeholder="0 0 * * *" className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm font-mono dark:bg-gray-700 dark:text-gray-100" />
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Schedule</label>
+                <CronPicker value={taskForm.schedule} onChange={v => tf('schedule', v)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Bandwidth Limit</label>

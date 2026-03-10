@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import CronPicker from '../components/CronPicker'
 import useJobPoller from '../useJobPoller'
 
 export default function RsyncTasks() {
@@ -119,7 +120,9 @@ export default function RsyncTasks() {
             <input type="number" value={form.remote_port} onChange={e => setForm({...form, remote_port: parseInt(e.target.value) || 22})} placeholder="Remote port" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
             <input type="text" value={form.remote_user} onChange={e => setForm({...form, remote_user: e.target.value})} placeholder="Remote user" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
             <input type="text" value={form.remote_path} onChange={e => setForm({...form, remote_path: e.target.value})} placeholder="Remote path" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
-            <input type="text" value={form.schedule} onChange={e => setForm({...form, schedule: e.target.value})} placeholder="Cron schedule" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm font-mono dark:bg-gray-700 dark:text-gray-100" />
+            <div className="md:col-span-2">
+              <CronPicker value={form.schedule} onChange={v => setForm({...form, schedule: v})} />
+            </div>
             <input type="text" value={form.extra_args} onChange={e => setForm({...form, extra_args: e.target.value})} placeholder="Extra arguments (optional)" className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm font-mono dark:bg-gray-700 dark:text-gray-100" />
           </div>
           <div className="flex items-center gap-4 mb-3 flex-wrap">

@@ -23,13 +23,13 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 
 **Monitoring** -- SMART health and scheduled tests, disk temperatures, enclosure view with pool mapping, per-thread CPU usage, memory and ZFS ARC tracking
 
-**Tasks** -- Cron jobs, rsync backups (local and SSH), resilver priority windows, init/shutdown scripts, cloud sync via rclone (push/pull, sync/copy/move, bandwidth limits, exclude patterns), background job queue with cancellation
+**Tasks** -- Cron jobs, rsync backups (local and SSH), resilver priority windows, init/shutdown scripts, cloud sync via rclone (push/pull, sync/copy/move, bandwidth limits, exclude patterns), background job queue with cancellation, visual cron scheduler with presets
 
-**Networking** -- Interface configuration (DHCP/static), network bonds (LACP, active-backup, balance-xor, etc.), DNS, static routes, IPMI configuration
+**Networking** -- Interface configuration (DHCP/static), network bonds (LACP, active-backup, balance-xor, etc.), VLANs, DNS, static routes, IPMI configuration
 
 **Services** -- Dynamic DNS (ddclient), FTP (vsftpd), UPS monitoring (NUT), OpenVPN client/server, SNMP
 
-**System** -- Services control, hostname/timezone/NTP, reboot/shutdown from the UI, package updates, journalctl log viewer, email alerts, config export/import, TrueNAS Core migration (users, SMB shares, snapshot policies, scrub/cloud sync tasks), browser-based web shell
+**System** -- Services control, hostname/timezone/NTP, reboot/shutdown from the UI, package updates, journalctl log viewer, alerts (email, Slack, PagerDuty, Pushover, webhook), config export/import, TrueNAS Core migration (users, SMB shares, snapshot policies, scrub/cloud sync tasks), browser-based web shell
 
 **Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, token revocation on logout/password change, audit logging
 
@@ -298,10 +298,10 @@ All endpoints are prefixed with `/api`. Authentication is required for all route
 | services         | `/services`         | Systemd service control             |
 | system           | `/system`           | Hostname, timezone, NTP, power      |
 | updates          | `/updates`          | System package updates              |
-| network          | `/network`          | Interface, bond, DNS, route, IPMI   |
+| network          | `/network`          | Interface, bond, VLAN, DNS, route, IPMI |
 | replication      | `/replication`      | ZFS send/receive replication tasks  |
 | logs             | `/logs`             | Journalctl log viewer               |
-| alerts           | `/alerts`           | SMTP config and alert categories    |
+| alerts           | `/alerts`           | SMTP, alert services, categories    |
 | jobs             | `/jobs`             | Background job tracking             |
 | tasks            | `/tasks`            | Generic scheduled tasks             |
 | cron_jobs        | `/cron-jobs`        | Cron job scheduling                 |

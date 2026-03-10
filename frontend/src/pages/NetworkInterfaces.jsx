@@ -24,6 +24,7 @@ export default function NetworkInterfaces() {
   const tabs = [
     { key: 'interfaces', label: 'Interfaces' },
     { key: 'bonds', label: 'Bonds' },
+    { key: 'vlans', label: 'VLANs' },
   ]
 
   return (
@@ -46,6 +47,7 @@ export default function NetworkInterfaces() {
       </div>
       {tab === 'interfaces' && <InterfacesTab />}
       {tab === 'bonds' && <BondsTab />}
+      {tab === 'vlans' && <VlansTab />}
     </div>
   )
 }
@@ -676,6 +678,204 @@ function BondsTab() {
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => deleteBond(deleteConfirm)} className="px-4 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">
+                Delete
+              </button>
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-1.5 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+function VlansTab() {
+  const [vlans, setVlans] = useState([])
+  const [interfaces, setInterfaces] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ name: '', id: '', link: '', dhcp: true, addresses: '', gateway: '', mtu: '', dns_servers: '' })
+
+  useEffect(() => { loadData() }, [])
+
+  const loadData = async () => {
+    try {
+      const [vlanRes, ifRes] = await Promise.all([
+        api.get('/network/vlans'),
+        api.get('/network/interfaces'),
+      ])
+      setVlans(vlanRes.data)
+      setInterfaces(ifRes.data.filter(i => i.type === 'physical' || i.type === 'bond'))
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to load VLANs')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createVlan = async () => {
+    setSaving(true)
+    setError('')
+    setSuccess('')
+    try {
+      const payload = {
+        name: form.name || undefined,
+        id: parseInt(form.id),
+        link: form.link,
+        dhcp: form.dhcp,
+        addresses: form.dhcp ? null : form.addresses.split(',').map(s => s.trim()).filter(Boolean),
+        gateway: form.dhcp ? null : form.gateway || null,
+        mtu: form.mtu ? parseInt(form.mtu) : null,
+        dns_servers: form.dns_servers ? form.dns_servers.split(',').map(s => s.trim()).filter(Boolean) : null,
+      }
+      await api.post('/network/vlans', payload)
+      setSuccess('VLAN created')
+      setShowCreate(false)
+      setForm({ name: '', id: '', link: '', dhcp: true, addresses: '', gateway: '', mtu: '', dns_servers: '' })
+      loadData()
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to create VLAN')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteVlan = async (name) => {
+    setDeleteConfirm(null)
+    setError('')
+    try {
+      await api.delete(`/network/vlans/${name}`)
+      setSuccess(`VLAN ${name} deleted`)
+      loadData()
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to delete VLAN')
+    }
+  }
+
+  if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+
+  const inputCls = 'w-full max-w-xs px-3 py-1.5 border dark:border-gray-600 rounded text-sm dark:bg-gray-800 dark:text-gray-100'
+
+  return (
+    <div>
+      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
+      {success && <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm rounded">{success}</div>}
+
+      <div className="mb-4">
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          {showCreate ? 'Cancel' : 'Create VLAN'}
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-lg space-y-3 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">VLAN ID (1-4094) *</label>
+              <input type="number" value={form.id} onChange={e => setForm({...form, id: e.target.value})} placeholder="100" min="1" max="4094" className={inputCls} required />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Parent Interface *</label>
+              <select value={form.link} onChange={e => setForm({...form, link: e.target.value})} className={inputCls}>
+                <option value="">Select interface</option>
+                {interfaces.map(i => (
+                  <option key={i.name} value={i.name}>{i.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name (optional)</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={form.id ? `vlan${form.id}` : 'vlan100'} className={inputCls} />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm dark:text-gray-300">
+            <input type="checkbox" checked={form.dhcp} onChange={e => setForm({...form, dhcp: e.target.checked})} className="rounded" />
+            DHCP
+          </label>
+          {!form.dhcp && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">IP Addresses (CIDR, comma-separated)</label>
+                <input type="text" value={form.addresses} onChange={e => setForm({...form, addresses: e.target.value})} placeholder="10.0.100.1/24" className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Gateway</label>
+                <input type="text" value={form.gateway} onChange={e => setForm({...form, gateway: e.target.value})} placeholder="10.0.100.1" className={inputCls} />
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">MTU</label>
+              <input type="number" value={form.mtu} onChange={e => setForm({...form, mtu: e.target.value})} placeholder="1500" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">DNS Servers (comma-separated)</label>
+              <input type="text" value={form.dns_servers} onChange={e => setForm({...form, dns_servers: e.target.value})} placeholder="8.8.8.8, 8.8.4.4" className={inputCls} />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={createVlan} disabled={saving || !form.id || !form.link} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+              {saving ? 'Creating...' : 'Create VLAN'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Name</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">VLAN ID</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Parent</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">IP Address</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">State</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vlans.map(v => (
+              <tr key={v.name} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td className="px-4 py-2 font-medium">{v.name}</td>
+                <td className="px-4 py-2">{v.id}</td>
+                <td className="px-4 py-2">{v.link}</td>
+                <td className="px-4 py-2 font-mono text-xs">{(v.addresses || []).join(', ') || (v.dhcp ? 'DHCP' : '-')}</td>
+                <td className="px-4 py-2"><StateBadge state={v.state} /></td>
+                <td className="px-4 py-2">
+                  <button onClick={() => setDeleteConfirm(v.name)} className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {vlans.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">No VLANs configured</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm">
+            <p className="text-sm text-gray-700 dark:text-gray-200 mb-4">
+              Delete VLAN <strong>{deleteConfirm}</strong>? This will apply network changes immediately.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => deleteVlan(deleteConfirm)} className="px-4 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">
                 Delete
               </button>
               <button onClick={() => setDeleteConfirm(null)} className="px-4 py-1.5 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
