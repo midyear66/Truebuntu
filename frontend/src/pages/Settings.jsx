@@ -621,17 +621,30 @@ export default function Settings() {
                 <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
                   Cloud Sync Tasks ({preview.cloud_sync_tasks?.length || 0})
                 </h4>
+                {preview.cloud_sync_tasks?.length > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Cloud credentials are encrypted in the TrueNAS export and must be re-entered after import.
+                  </p>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-                      <th className="pb-2 pr-4">Description</th><th className="pb-2 pr-4">Path</th><th className="pb-2 pr-4">Direction</th><th className="pb-2">Schedule</th>
+                      <th className="pb-2 pr-4">Description</th><th className="pb-2 pr-4">Provider</th><th className="pb-2 pr-4">Direction</th><th className="pb-2 pr-4">Mode</th><th className="pb-2 pr-4">Path</th><th className="pb-2">Schedule</th>
                     </tr></thead>
                     <tbody>
                       {(preview.cloud_sync_tasks || []).map((t, i) => (
                         <tr key={i} className="border-b dark:border-gray-700 last:border-0">
-                          <td className="py-1 pr-4 font-medium">{t.description}</td>
-                          <td className="py-1 pr-4 font-mono text-xs">{t.path}</td>
+                          <td className="py-1 pr-4 font-medium">
+                            {t.description}
+                            {!t.enabled && <span className="ml-1 text-xs text-gray-400">(disabled)</span>}
+                          </td>
+                          <td className="py-1 pr-4 text-xs">
+                            {t.credential_provider || '-'}
+                            {t.credential_name && <span className="text-gray-400 ml-1">({t.credential_name})</span>}
+                          </td>
                           <td className="py-1 pr-4">{t.direction}</td>
+                          <td className="py-1 pr-4 text-xs">{t.transfer_mode}</td>
+                          <td className="py-1 pr-4 font-mono text-xs">{t.path}</td>
                           <td className="py-1 font-mono text-xs">{t.schedule}</td>
                         </tr>
                       ))}

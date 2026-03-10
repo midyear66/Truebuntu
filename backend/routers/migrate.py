@@ -274,21 +274,42 @@ async def apply_truenas_config(
 
     # Import cloud sync tasks (credentials must be re-entered)
     if parsed.get("cloud_sync_tasks"):
+        if 'pool_mounts' not in locals():
+            pool_mounts = get_pool_mountpoints()
         db = get_db()
         try:
             count = 0
             for task in parsed["cloud_sync_tasks"]:
+                path = _remap_truenas_path(task.get("path", ""), pool_mounts)
+                config = {
+                    "source": path,
+                    "direction": task.get("direction", "PUSH"),
+                    "transfer_mode": task.get("transfer_mode", "SYNC"),
+                    "credential_name": task.get("credential_name", ""),
+                    "credential_provider": task.get("credential_provider", ""),
+                    "encryption": task.get("encryption", False),
+                    "follow_symlinks": task.get("follow_symlinks", False),
+                    "snapshot": task.get("snapshot", False),
+                    "note": "Imported from TrueNAS — credentials must be re-entered",
+                }
+                if task.get("transfers"):
+                    config["transfers"] = task["transfers"]
+                if task.get("bwlimit"):
+                    config["bwlimit"] = task["bwlimit"]
+                if task.get("exclude"):
+                    config["exclude"] = task["exclude"]
+                if task.get("pre_script"):
+                    config["pre_script"] = task["pre_script"]
+                if task.get("post_script"):
+                    config["post_script"] = task["post_script"]
                 db.execute(
-                    "INSERT INTO tasks (name, type, schedule, config, enabled) VALUES (?, ?, ?, ?, 1)",
+                    "INSERT INTO tasks (name, type, schedule, config, enabled) VALUES (?, ?, ?, ?, ?)",
                     (
                         task.get("description", "Cloud Sync"),
                         "rclone_sync",
                         task.get("schedule", ""),
-                        json.dumps({
-                            "source": task.get("path", ""),
-                            "dest": task.get("dest", ""),
-                            "note": "Credentials must be re-entered",
-                        }),
+                        json.dumps(config),
+                        1 if task.get("enabled", True) else 0,
                     ),
                 )
                 count += 1
@@ -509,17 +530,60 @@ def _parse_truenas_tar(tar_bytes: bytes) -> dict:
             except sqlite3.OperationalError:
                 pass
 
+            # Cloud credentials (id -> name/provider lookup)
+            credential_map = {}
+            try:
+                cred_rows = conn.execute(
+                    "SELECT id, name, provider FROM system_cloudcredentials"
+                ).fetchall()
+                for cr in cred_rows:
+                    credential_map[cr["id"]] = {
+                        "name": cr["name"],
+                        "provider": cr["provider"],
+                    }
+            except sqlite3.OperationalError:
+                pass
+
             # Cloud sync tasks
             try:
                 rows = conn.execute("SELECT * FROM tasks_cloudsync").fetchall()
                 for row in rows:
                     r = dict(row)
-                    parsed["cloud_sync_tasks"].append({
+                    cred = credential_map.get(r.get("credential_id"), {})
+                    # Parse JSON fields
+                    exclude = []
+                    try:
+                        excl = json.loads(r.get("exclude", "[]"))
+                        if isinstance(excl, list):
+                            exclude = excl
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                    bwlimit = []
+                    try:
+                        bwl = json.loads(r.get("bwlimit", "[]"))
+                        if isinstance(bwl, list):
+                            bwlimit = bwl
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                    task = {
                         "description": r.get("description", ""),
                         "path": r.get("path", ""),
-                        "direction": r.get("direction", ""),
+                        "direction": r.get("direction", "PUSH"),
+                        "transfer_mode": r.get("transfer_mode", "SYNC"),
                         "schedule": _parse_truenas_schedule(r, prefix=""),
-                    })
+                        "enabled": bool(r.get("enabled", 1)),
+                        "credential_name": cred.get("name", ""),
+                        "credential_provider": cred.get("provider", ""),
+                        "encryption": bool(r.get("encryption", 0)),
+                        "follow_symlinks": bool(r.get("follow_symlinks", 0)),
+                        "transfers": r.get("transfers"),
+                        "bwlimit": bwlimit,
+                        "exclude": exclude,
+                        "pre_script": r.get("pre_script", ""),
+                        "post_script": r.get("post_script", ""),
+                        "snapshot": bool(r.get("snapshot", 0)),
+                    }
+                    parsed["cloud_sync_tasks"].append(task)
             except sqlite3.OperationalError:
                 pass
 
