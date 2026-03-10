@@ -217,6 +217,11 @@ def _build_rclone_cmd(config: dict) -> list[str]:
     if not credential_name and config.get("source") and config.get("dest"):
         source = config["source"]
         dest = config["dest"]
+        # Prefix local paths with /proc/1/root/ for host filesystem access
+        if source.startswith("/"):
+            source = f"/proc/1/root{source}"
+        if dest.startswith("/"):
+            dest = f"/proc/1/root{dest}"
         rclone_cmd = transfer_mode if transfer_mode in VALID_TRANSFER_MODES else "sync"
         return ["rclone", rclone_cmd, source, dest, "--config", RCLONE_CONFIG, "--progress"]
 
@@ -228,10 +233,14 @@ def _build_rclone_cmd(config: dict) -> list[str]:
 
     rclone_cmd = transfer_mode if transfer_mode in VALID_TRANSFER_MODES else "sync"
 
+    # The container doesn't share the host mount namespace, so ZFS mountpoints
+    # aren't directly visible. Access them via /proc/1/root/ (host init's root fs).
+    host_local_path = f"/proc/1/root{local_path}"
+
     if direction == "PUSH":
-        source, dest = local_path, remote_path
+        source, dest = host_local_path, remote_path
     else:
-        source, dest = remote_path, local_path
+        source, dest = remote_path, host_local_path
 
     cmd = ["rclone", rclone_cmd, source, dest, "--config", RCLONE_CONFIG, "--progress"]
 
