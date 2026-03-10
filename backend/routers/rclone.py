@@ -87,3 +87,18 @@ def test_remote(name: str):
     if not result.ok:
         return {"success": False, "error": result.stderr.strip()}
     return {"success": True}
+
+
+@router.get("/remotes/{name}/buckets")
+def list_buckets(name: str):
+    """List top-level buckets/directories for a remote."""
+    result = run(["rclone", "lsd", f"{name}:", "--config", RCLONE_CONFIG, "--max-depth", "1"], timeout=30)
+    if not result.ok:
+        return {"buckets": [], "error": result.stderr.strip()}
+    buckets = []
+    for line in result.stdout.strip().splitlines():
+        # rclone lsd output: "          -1 2024-01-15 10:30:00        -1 bucket-name"
+        parts = line.split()
+        if parts:
+            buckets.append(parts[-1])
+    return {"buckets": sorted(buckets)}

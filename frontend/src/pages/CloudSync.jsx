@@ -23,6 +23,9 @@ export default function CloudSync() {
   const [remotes, setRemotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [buckets, setBuckets] = useState([])
+  const [bucketsLoading, setBucketsLoading] = useState(false)
+  const [customBucket, setCustomBucket] = useState(false)
 
   // Tasks state
   const [tasks, setTasks] = useState([])
@@ -60,6 +63,8 @@ export default function CloudSync() {
   const openCreateTask = () => {
     setEditingTaskId(null)
     setTaskForm({ ...EMPTY_TASK })
+    setBuckets([])
+    setCustomBucket(false)
     setShowTaskForm(true)
   }
 
@@ -83,6 +88,7 @@ export default function CloudSync() {
       post_script: c.post_script || '',
     })
     setShowTaskForm(true)
+    if (c.credential_name) loadBuckets(c.credential_name)
   }
 
   const submitTask = async (e) => {
@@ -148,7 +154,27 @@ export default function CloudSync() {
     }
   }
 
-  const tf = (field, value) => setTaskForm(prev => ({ ...prev, [field]: value }))
+  const loadBuckets = async (remoteName) => {
+    if (!remoteName) { setBuckets([]); return }
+    setBucketsLoading(true)
+    try {
+      const res = await api.get(`/rclone/remotes/${remoteName}/buckets`)
+      setBuckets(res.data.buckets || [])
+    } catch (err) {
+      setBuckets([])
+    } finally {
+      setBucketsLoading(false)
+    }
+  }
+
+  const tf = (field, value) => {
+    setTaskForm(prev => ({ ...prev, [field]: value }))
+    if (field === 'credential_name') {
+      setTaskForm(prev => ({ ...prev, credential_name: value, bucket_folder: '' }))
+      setCustomBucket(false)
+      loadBuckets(value)
+    }
+  }
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
@@ -204,8 +230,27 @@ export default function CloudSync() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Bucket / Folder</label>
-                <input type="text" value={taskForm.bucket_folder} onChange={e => tf('bucket_folder', e.target.value)}
-                  placeholder="bucket-name/path" className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
+                {bucketsLoading ? (
+                  <div className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-400 dark:bg-gray-700">Loading buckets...</div>
+                ) : customBucket || buckets.length === 0 ? (
+                  <div className="flex gap-1">
+                    <input type="text" value={taskForm.bucket_folder} onChange={e => tf('bucket_folder', e.target.value)}
+                      placeholder="bucket-name/path" className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100" />
+                    {buckets.length > 0 && (
+                      <button type="button" onClick={() => { setCustomBucket(false); tf('bucket_folder', '') }}
+                        className="px-2 text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">List</button>
+                    )}
+                  </div>
+                ) : (
+                  <select value={taskForm.bucket_folder} onChange={e => {
+                    if (e.target.value === '__custom__') { setCustomBucket(true); tf('bucket_folder', '') }
+                    else tf('bucket_folder', e.target.value)
+                  }} className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-100">
+                    <option value="">Select a bucket...</option>
+                    {buckets.map(b => <option key={b} value={b}>{b}</option>)}
+                    <option value="__custom__">Other (enter manually)...</option>
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Local Path</label>
