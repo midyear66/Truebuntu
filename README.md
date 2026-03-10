@@ -43,7 +43,7 @@ Run the one-liner on a fresh Ubuntu/Debian x86_64 host (8 GB+ RAM):
 curl -fsSL https://raw.githubusercontent.com/midyear66/Truebuntu/main/install.sh | sudo bash
 ```
 
-This installs all host dependencies (Docker, ZFS, Samba, NFS, Chrony, smartmontools, rclone, netplan), clones the repo to `/opt/truebuntu`, generates a `.env` with a random secret key, and starts the container.
+This installs all host dependencies (Docker, ZFS, Samba, NFS, Chrony, smartmontools, rclone, netplan), clones the repo to a `truebuntu/` directory under your current working directory, generates a `.env` with a random secret key and your UID/GID, and starts the container. The install directory is owned by the calling user (detected via `SUDO_USER`).
 
 Once complete, open `http://<your-server-ip>` in a browser and create your admin account.
 
@@ -52,8 +52,8 @@ Once complete, open `http://<your-server-ip>` in a browser and create your admin
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/midyear66/Truebuntu.git /opt/truebuntu
-   cd /opt/truebuntu
+   git clone https://github.com/midyear66/Truebuntu.git ~/truebuntu
+   cd ~/truebuntu
    ```
 
 2. Create a `.env` file:
