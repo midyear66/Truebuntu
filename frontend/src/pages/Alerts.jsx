@@ -39,7 +39,7 @@ export default function Alerts() {
   const [categories, setCategories] = useState({
     cron_failures: false, rsync_failures: false,
     smart_failures: false, replication_failures: false,
-    scrub_failures: false, pool_degraded: false, pool_capacity: false,
+    zfs_alerts: false,
   })
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -321,16 +321,9 @@ export default function Alerts() {
           </label>
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mt-3">ZFS / Storage</p>
           <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-            <input type="checkbox" checked={categories.scrub_failures || false} onChange={e => setCategories({...categories, scrub_failures: e.target.checked})} />
-            Scrub Failures
-          </label>
-          <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-            <input type="checkbox" checked={categories.pool_degraded || false} onChange={e => setCategories({...categories, pool_degraded: e.target.checked})} />
-            Pool Degraded / Faulted
-          </label>
-          <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-            <input type="checkbox" checked={categories.pool_capacity || false} onChange={e => setCategories({...categories, pool_capacity: e.target.checked})} />
-            Pool Capacity Warning (80%+)
+            <input type="checkbox" checked={categories.zfs_alerts || false} onChange={e => setCategories({...categories, zfs_alerts: e.target.checked})} />
+            ZFS Failures
+            <span className="text-xs text-gray-400 dark:text-gray-500">(scrub errors, pool degraded/faulted, capacity 80%+)</span>
           </label>
         </div>
         <div className="flex items-center gap-3">

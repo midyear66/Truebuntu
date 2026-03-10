@@ -29,9 +29,7 @@ class AlertCategories(BaseModel):
     rsync_failures: bool = False
     smart_failures: bool = False
     replication_failures: bool = False
-    scrub_failures: bool = False
-    pool_degraded: bool = False
-    pool_capacity: bool = False
+    zfs_alerts: bool = False
 
 
 class AlertServiceRequest(BaseModel):
@@ -120,9 +118,7 @@ def get_alert_settings():
             "rsync_failures": False,
             "smart_failures": False,
             "replication_failures": False,
-            "scrub_failures": False,
-            "pool_degraded": False,
-            "pool_capacity": False,
+            "zfs_alerts": False,
         }
     finally:
         db.close()
@@ -137,9 +133,7 @@ def save_alert_settings(req: AlertCategories, username: str = Depends(get_curren
             "rsync_failures": req.rsync_failures,
             "smart_failures": req.smart_failures,
             "replication_failures": req.replication_failures,
-            "scrub_failures": req.scrub_failures,
-            "pool_degraded": req.pool_degraded,
-            "pool_capacity": req.pool_capacity,
+            "zfs_alerts": req.zfs_alerts,
         }
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
