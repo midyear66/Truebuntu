@@ -105,6 +105,7 @@ install_deps() {
 
     local packages=(
         docker.io
+        docker-buildx
         zfsutils-linux
         samba
         nfs-kernel-server
