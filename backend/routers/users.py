@@ -19,6 +19,8 @@ class UserCreateRequest(BaseModel):
     username: str
     password: str
     uid: int | None = None
+    gid: int | None = None
+    primary_group: str | None = None  # existing group name
     groups: list[str] = []
     create_home: bool = True
     smb_user: bool = True
@@ -87,9 +89,38 @@ def create_user(req: UserCreateRequest, username: str = Depends(get_current_admi
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
+    # Resolve primary group: use existing group name, or create group with specified GID
+    primary_gid = None
+    if req.primary_group:
+        # Use an existing group by name
+        check = subprocess.run(
+            ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "getent", "group", req.primary_group],
+            capture_output=True, text=True, timeout=10,
+        )
+        if check.returncode != 0:
+            raise HTTPException(status_code=400, detail=f"Group '{req.primary_group}' does not exist")
+        primary_gid = check.stdout.strip().split(":")[2]
+    elif req.gid is not None:
+        # Check if GID already exists
+        check = subprocess.run(
+            ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "getent", "group", str(req.gid)],
+            capture_output=True, text=True, timeout=10,
+        )
+        if check.returncode != 0:
+            # Create the group with the requested GID (use the username as group name)
+            proc = subprocess.run(
+                ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "groupadd", "-g", str(req.gid), req.username],
+                capture_output=True, text=True, timeout=10,
+            )
+            if proc.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Failed to create group: {proc.stderr.strip()}")
+        primary_gid = str(req.gid)
+
     cmd = ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "useradd"]
     if req.uid is not None:
         cmd.extend(["-u", str(req.uid)])
+    if primary_gid:
+        cmd.extend(["-g", primary_gid])
     if req.create_home:
         cmd.append("-m")
     else:
