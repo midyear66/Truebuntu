@@ -7,7 +7,7 @@ export default function SystemUsers() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('users')
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ username: '', password: '', uid: '', smb_user: true })
+  const [form, setForm] = useState({ username: '', password: '', uid: '', gid: '', groupMode: 'auto', primaryGroup: '', smb_user: true })
   const [showGroupCreate, setShowGroupCreate] = useState(false)
   const [groupForm, setGroupForm] = useState({ name: '', gid: '' })
   const [error, setError] = useState('')
@@ -32,12 +32,20 @@ export default function SystemUsers() {
   const createUser = async (e) => {
     e.preventDefault()
     try {
-      await api.post('/users', {
-        ...form,
+      const payload = {
+        username: form.username,
+        password: form.password,
         uid: form.uid ? parseInt(form.uid) : undefined,
-      })
+        smb_user: form.smb_user,
+      }
+      if (form.groupMode === 'existing' && form.primaryGroup) {
+        payload.primary_group = form.primaryGroup
+      } else if (form.groupMode === 'custom' && form.gid) {
+        payload.gid = parseInt(form.gid)
+      }
+      await api.post('/users', payload)
       setShowCreate(false)
-      setForm({ username: '', password: '', uid: '', smb_user: true })
+      setForm({ username: '', password: '', uid: '', gid: '', groupMode: 'auto', primaryGroup: '', smb_user: true })
       load()
     } catch (err) {
       setError(err.response?.data?.detail || 'Create failed')
@@ -112,10 +120,44 @@ export default function SystemUsers() {
           {showCreate && (
             <form onSubmit={createUser} className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} placeholder="Username" className="border rounded px-3 py-2 text-sm" required />
-                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 8 chars)" className="border rounded px-3 py-2 text-sm" required />
-                <input type="text" value={form.uid} onChange={e => setForm({...form, uid: e.target.value})} placeholder="UID (optional)" className="border rounded px-3 py-2 text-sm" />
-                <label className="flex items-center gap-2 text-sm">
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Username</label>
+                  <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} placeholder="Username" className="border dark:border-gray-600 rounded px-3 py-2 text-sm w-full dark:bg-gray-700 dark:text-gray-100" required />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Password</label>
+                  <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Min 8 chars" className="border dark:border-gray-600 rounded px-3 py-2 text-sm w-full dark:bg-gray-700 dark:text-gray-100" required />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">UID (optional)</label>
+                  <input type="text" value={form.uid} onChange={e => setForm({...form, uid: e.target.value})} placeholder="Auto-assign" className="border dark:border-gray-600 rounded px-3 py-2 text-sm w-full dark:bg-gray-700 dark:text-gray-100" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Primary Group</label>
+                  <select value={form.groupMode} onChange={e => setForm({...form, groupMode: e.target.value, gid: '', primaryGroup: ''})} className="border dark:border-gray-600 rounded px-3 py-2 text-sm w-full dark:bg-gray-700 dark:text-gray-100">
+                    <option value="auto">Auto (same as username)</option>
+                    <option value="existing">Existing group</option>
+                    <option value="custom">Custom GID</option>
+                  </select>
+                </div>
+                {form.groupMode === 'existing' && (
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Select Group</label>
+                    <select value={form.primaryGroup} onChange={e => setForm({...form, primaryGroup: e.target.value})} className="border dark:border-gray-600 rounded px-3 py-2 text-sm w-full dark:bg-gray-700 dark:text-gray-100" required>
+                      <option value="">-- Select --</option>
+                      {groups.map(g => (
+                        <option key={g.name} value={g.name}>{g.name} ({g.gid})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {form.groupMode === 'custom' && (
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">GID</label>
+                    <input type="number" value={form.gid} onChange={e => setForm({...form, gid: e.target.value})} placeholder="Creates group if needed" className="border dark:border-gray-600 rounded px-3 py-2 text-sm w-full dark:bg-gray-700 dark:text-gray-100" required />
+                  </div>
+                )}
+                <label className="flex items-center gap-2 text-sm dark:text-gray-300">
                   <input type="checkbox" checked={form.smb_user} onChange={e => setForm({...form, smb_user: e.target.checked})} />
                   Also create Samba account
                 </label>
