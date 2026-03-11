@@ -1,5 +1,6 @@
 import logging
 import re
+import subprocess
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -34,15 +35,18 @@ class GroupCreateRequest(BaseModel):
 
 @router.get("")
 def list_users():
-    result = run(["getent", "passwd"])
-    if not result.ok:
+    proc = subprocess.run(
+        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "getent", "passwd"],
+        capture_output=True, text=True, timeout=10,
+    )
+    if proc.returncode != 0:
         return []
     users = []
-    for line in result.stdout.strip().splitlines():
+    for line in proc.stdout.strip().splitlines():
         parts = line.split(":")
         if len(parts) >= 7:
             uid = int(parts[2])
-            if uid >= 1000 or uid in (972,):  # Include known service accounts like plex
+            if uid >= 500:
                 users.append({
                     "username": parts[0],
                     "uid": uid,
@@ -56,11 +60,14 @@ def list_users():
 
 @router.get("/groups")
 def list_groups():
-    result = run(["getent", "group"])
-    if not result.ok:
+    proc = subprocess.run(
+        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "getent", "group"],
+        capture_output=True, text=True, timeout=10,
+    )
+    if proc.returncode != 0:
         return []
     groups = []
-    for line in result.stdout.strip().splitlines():
+    for line in proc.stdout.strip().splitlines():
         parts = line.split(":")
         if len(parts) >= 4:
             gid = int(parts[2])
@@ -80,7 +87,7 @@ def create_user(req: UserCreateRequest, username: str = Depends(get_current_admi
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    cmd = ["useradd"]
+    cmd = ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "useradd"]
     if req.uid is not None:
         cmd.extend(["-u", str(req.uid)])
     if req.create_home:
@@ -91,25 +98,20 @@ def create_user(req: UserCreateRequest, username: str = Depends(get_current_admi
         cmd.extend(["-G", ",".join(req.groups)])
     cmd.append(req.username)
 
-    result = run(cmd)
-    if not result.ok:
-        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=proc.stderr.strip())
 
-    # Set password
-    pwd_result = run(["passwd", "--stdin", req.username], timeout=10)
-    if not pwd_result.ok:
-        # Fall back to chpasswd
-        import subprocess
-        proc = subprocess.run(
-            ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
-            input=f"{req.username}:{req.password}\n",
-            capture_output=True, text=True, timeout=10,
-        )
-        if proc.returncode != 0:
-            logger.warning(f"Failed to set password for {req.username}: {proc.stderr}")
+    # Set password via chpasswd on host
+    proc = subprocess.run(
+        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
+        input=f"{req.username}:{req.password}\n",
+        capture_output=True, text=True, timeout=10,
+    )
+    if proc.returncode != 0:
+        logger.warning(f"Failed to set password for {req.username}: {proc.stderr}")
 
     if req.smb_user:
-        import subprocess
         proc = subprocess.run(
             ["smbpasswd", "-a", "-s", req.username],
             input=f"{req.password}\n{req.password}\n",
@@ -128,9 +130,12 @@ def delete_user(target_user: str, username: str = Depends(get_current_admin)):
         raise HTTPException(status_code=400, detail="Invalid username")
 
     run(["smbpasswd", "-x", target_user])
-    result = run(["userdel", target_user])
-    if not result.ok:
-        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    proc = subprocess.run(
+        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "userdel", target_user],
+        capture_output=True, text=True, timeout=10,
+    )
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=proc.stderr.strip())
 
     logger.info(f"User '{username}' deleted system user '{target_user}'")
     return {"message": f"User '{target_user}' deleted"}
@@ -143,10 +148,8 @@ def change_password(target_user: str, req: UserPasswordRequest, username: str = 
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    import subprocess
-
     proc = subprocess.run(
-        ["chpasswd"],
+        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
         input=f"{target_user}:{req.password}\n",
         capture_output=True, text=True, timeout=10,
     )
@@ -168,14 +171,14 @@ def create_group(req: GroupCreateRequest, username: str = Depends(get_current_ad
     if not VALID_USERNAME.match(req.name):
         raise HTTPException(status_code=400, detail="Invalid group name")
 
-    cmd = ["groupadd"]
+    cmd = ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "groupadd"]
     if req.gid is not None:
         cmd.extend(["-g", str(req.gid)])
     cmd.append(req.name)
 
-    result = run(cmd)
-    if not result.ok:
-        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=proc.stderr.strip())
 
     logger.info(f"User '{username}' created group '{req.name}'")
     return {"message": f"Group '{req.name}' created"}
@@ -187,9 +190,12 @@ def add_user_to_group(target_user: str, group: str, username: str = Depends(get_
         raise HTTPException(status_code=400, detail="Invalid username")
     if not VALID_USERNAME.match(group):
         raise HTTPException(status_code=400, detail="Invalid group name")
-    result = run(["usermod", "-aG", group, target_user])
-    if not result.ok:
-        raise HTTPException(status_code=500, detail=result.stderr.strip())
+    proc = subprocess.run(
+        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "usermod", "-aG", group, target_user],
+        capture_output=True, text=True, timeout=10,
+    )
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=proc.stderr.strip())
 
     logger.info(f"User '{username}' added '{target_user}' to group '{group}'")
     return {"message": f"User '{target_user}' added to group '{group}'"}

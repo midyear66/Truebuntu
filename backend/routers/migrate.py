@@ -89,22 +89,28 @@ async def apply_truenas_config(
                 if gid and gid >= 1000:
                     gcheck = run(["getent", "group", str(gid)])
                     if not gcheck.ok:
-                        run(["groupadd", "-g", str(gid), linux_name])
+                        subprocess.run(
+                            ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "groupadd", "-g", str(gid), linux_name],
+                            capture_output=True, text=True, timeout=10,
+                        )
                 # Create system user
-                cmd = ["useradd", "-u", str(uid), "-m"]
+                cmd = ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "useradd", "-u", str(uid), "-m"]
                 if gid and gid >= 1000:
                     cmd.extend(["-g", str(gid)])
                 cmd.append(linux_name)
-                result = run(cmd)
-                if not result.ok:
-                    errors.append(f"Failed to create user '{linux_name}': {result.stderr.strip()}")
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if proc.returncode != 0:
+                    errors.append(f"Failed to create user '{linux_name}': {proc.stderr.strip()}")
                     skipped += 1
                     continue
             # Add to additional groups if they exist on the system
             for grp in user.get("groups", []):
                 grp_check = run(["getent", "group", grp])
                 if grp_check.ok:
-                    run(["usermod", "-aG", grp, linux_name])
+                    subprocess.run(
+                        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "usermod", "-aG", grp, linux_name],
+                        capture_output=True, text=True, timeout=10,
+                    )
             # Set password and SMB account if provided
             pw = passwords.get(uname) or passwords.get(linux_name)
             if pw and len(pw) >= 8:
