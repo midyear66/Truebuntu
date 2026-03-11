@@ -161,7 +161,85 @@ Validate the full migration path: create a TrueNAS VM on Proxmox with a 4-disk Z
   ```
   > **Note:** Always prefer a clean export. Only use `-f` if the pool shows as "potentially active" or "was not cleanly exported."
 
-### 4.3 Verify Pool Health
+### 4.3 Pre-Migration: Users, Groups, and Permissions
+
+Before importing the TrueNAS config, create the system users and groups that match the TrueNAS UID/GID ownership on the pool. This ensures file permissions work immediately after import.
+
+#### Gather Ownership Info from TrueNAS
+
+- [ ] On TrueNAS (before shutdown), record the share ownership and critical groups:
+  ```bash
+  ls -la /mnt/<pool>/
+  getent group family   # or any custom groups used by shares
+  getent passwd plex    # or any service accounts
+  ```
+
+#### Create Groups on Ubuntu
+
+- [ ] Create groups that match TrueNAS GIDs. If a GID is already taken (e.g., GID 101 = `lxd` on Ubuntu), create the group with an auto-assigned GID and remap file ownership after pool import:
+  ```bash
+  # Check if the TrueNAS GID is available
+  getent group 101  # if taken (e.g., lxd), skip -g flag
+
+  # Option A: GID is available — create with matching GID
+  sudo groupadd -g 101 family
+
+  # Option B: GID is taken — create with auto GID, remap after import
+  sudo groupadd family
+  ```
+- [ ] Verify:
+  ```bash
+  getent group family
+  ```
+
+#### Remap File Ownership (if GIDs differ)
+
+- [ ] If any groups were created with a different GID than TrueNAS, remap ownership after pool import:
+  ```bash
+  # Find files owned by the old TrueNAS GID and chgrp to the new group
+  sudo find /<pool> -group 101 -exec chgrp family {} +
+  ```
+  > **Note:** This can take a while on large pools. Run it per-dataset for faster feedback:
+  > ```bash
+  > sudo chgrp -R family /<pool>/Family /<pool>/Photo /<pool>/Video
+  > ```
+
+#### Create Service Accounts on Ubuntu
+
+- [ ] Create service accounts with matching UIDs/GIDs:
+  ```bash
+  # Example: plex (UID 972, GID 972 on TrueNAS)
+  sudo groupadd -g 972 plex
+  sudo useradd -u 972 -g 972 -m -s /bin/bash plex
+  sudo passwd plex
+  ```
+
+#### Add Users to Groups
+
+- [ ] Add users to the appropriate groups:
+  ```bash
+  sudo usermod -aG family sanford
+  ```
+
+#### Verify Permissions After Pool Import
+
+- [ ] After the pool is imported, verify share ownership transferred correctly:
+  ```bash
+  ls -la /<pool>/
+  ```
+  - Owners should show usernames (not numeric UIDs) if UID/GID mapping is correct
+  - If you see numeric IDs instead of names, the corresponding user/group is missing — create it with the matching ID
+- [ ] Check for extended ACLs (POSIX or NFSv4):
+  ```bash
+  sudo apt install -y nfs4-acl-tools
+  for dir in /<pool>/*/; do
+    echo "=== $dir ==="
+    nfs4_getfacl "$dir" 2>/dev/null || echo "(no NFSv4 ACLs)"
+  done
+  ```
+  > **Note:** Most TrueNAS home setups use standard POSIX permissions (owner/group/mode), not NFSv4 ACLs. If `nfs4_getfacl` returns empty results, permissions are purely POSIX and will work on Linux without any conversion.
+
+### 4.4 Verify Pool Health
 
 - [ ] Confirm pool status:
   ```bash
@@ -413,6 +491,7 @@ sudo docker compose up -d --build
 | Datasets | All datasets and properties preserved |
 | Snapshots | All TrueNAS snapshots visible and intact |
 | Data integrity | All file checksums match |
+| File permissions | Share ownership shows usernames (not numeric UIDs); `ls -la` matches TrueNAS |
 | SMB shares | Clients can read/write after share recreation |
 | Web UI | All Truebuntu pages load, no console errors |
 | SMART | Disk health data accessible |
