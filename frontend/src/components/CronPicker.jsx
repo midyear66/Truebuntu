@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 
 const PRESETS = [
+  { label: 'Every 5 min', value: '*/5 * * * *' },
+  { label: 'Every 15 min', value: '*/15 * * * *' },
+  { label: 'Every 30 min', value: '*/30 * * * *' },
   { label: 'Hourly', value: '0 * * * *' },
   { label: 'Daily (midnight)', value: '0 0 * * *' },
   { label: 'Daily (noon)', value: '0 12 * * *' },
@@ -30,7 +33,9 @@ function describeCron(cron) {
   if (parts.length !== 5) return ''
   const [min, hour, dom, mon, dow] = parts
   let desc = []
-  if (min !== '*' && hour !== '*') desc.push(`at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`)
+  if (min.startsWith('*/')) desc.push(`every ${min.slice(2)} minutes`)
+  else if (hour.startsWith('*/')) desc.push(`every ${hour.slice(2)} hours${min !== '*' ? ` at minute ${min}` : ''}`)
+  else if (min !== '*' && hour !== '*') desc.push(`at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`)
   else if (min !== '*') desc.push(`at minute ${min}`)
   if (dom !== '*') desc.push(`on day ${dom}`)
   if (mon !== '*') {
@@ -91,6 +96,10 @@ export default function CronPicker({ value, onChange }) {
             <label className="block text-[10px] text-gray-400 mb-0.5">Minute</label>
             <select value={min} onChange={e => setPart(0, e.target.value)} className={selectClass}>
               <option value="*">Every (*)</option>
+              <option value="*/5">Every 5</option>
+              <option value="*/10">Every 10</option>
+              <option value="*/15">Every 15</option>
+              <option value="*/30">Every 30</option>
               {MINUTES.map(m => <option key={m} value={String(m)}>{m}</option>)}
             </select>
           </div>
@@ -98,6 +107,10 @@ export default function CronPicker({ value, onChange }) {
             <label className="block text-[10px] text-gray-400 mb-0.5">Hour</label>
             <select value={hour} onChange={e => setPart(1, e.target.value)} className={selectClass}>
               <option value="*">Every (*)</option>
+              <option value="*/2">Every 2</option>
+              <option value="*/4">Every 4</option>
+              <option value="*/6">Every 6</option>
+              <option value="*/12">Every 12</option>
               {HOURS.map(h => <option key={h} value={String(h)}>{String(h).padStart(2, '0')}</option>)}
             </select>
           </div>

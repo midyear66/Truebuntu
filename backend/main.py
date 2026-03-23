@@ -141,6 +141,8 @@ def startup():
     init_db()
     from backend.utils.jobs import JobManager
     JobManager().cleanup_stale()
+    from backend.utils.snapshot_scheduler import start_snapshot_scheduler
+    start_snapshot_scheduler()
     logger.info("Truebuntu started")
 
 

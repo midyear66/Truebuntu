@@ -78,6 +78,22 @@ def delete_snapshot(snapshot: str, username: str = Depends(get_current_admin)):
     if not VALID_NAME.match(snapshot) or "@" not in snapshot:
         raise HTTPException(status_code=400, detail="Invalid snapshot name")
 
+    # Check if any replication task depends on this snapshot
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, name FROM zfs_replication_tasks WHERE last_snapshot = ? AND enabled = 1",
+            (snapshot,),
+        ).fetchone()
+        if row:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Snapshot is needed by replication task '{row[1]}' (id={row[0]}). "
+                       f"Disable or update the replication task before deleting this snapshot.",
+            )
+    finally:
+        db.close()
+
     result = run(["zfs", "destroy", snapshot])
     if not result.ok:
         raise HTTPException(status_code=500, detail=result.stderr.strip())
