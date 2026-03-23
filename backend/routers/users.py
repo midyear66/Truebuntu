@@ -2,10 +2,11 @@ import logging
 import re
 import subprocess
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from backend.utils.auth import get_current_admin
+from backend.utils.rate_limit import limiter
 from backend.utils.shell import run
 
 logger = logging.getLogger(__name__)
@@ -173,7 +174,8 @@ def delete_user(target_user: str, username: str = Depends(get_current_admin)):
 
 
 @router.post("/{target_user}/password")
-def change_password(target_user: str, req: UserPasswordRequest, username: str = Depends(get_current_admin)):
+@limiter.limit("5/minute")
+def change_password(request: Request, target_user: str, req: UserPasswordRequest, username: str = Depends(get_current_admin)):
     if not VALID_USERNAME.match(target_user):
         raise HTTPException(status_code=400, detail="Invalid username")
     if len(req.password) < 8:

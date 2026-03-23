@@ -38,6 +38,12 @@ class JobManager:
         if not cmd and not shell_cmd:
             raise ValueError("Must provide cmd or shell_cmd")
 
+        # shell_cmd bypasses DANGEROUS_CHARS checks — callers MUST use
+        # shlex.quote() on all user-supplied values embedded in the string.
+        # Prefer cmd (array) over shell_cmd whenever possible.
+        if shell_cmd and not cmd:
+            logger.debug("Job submitted with shell_cmd — ensure caller used shlex.quote()")
+
         if cmd:
             binary = cmd[0].split("/")[-1]
             if binary not in ALLOWED_COMMANDS:

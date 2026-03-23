@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -6,6 +7,8 @@ from typing import Optional
 
 from backend.utils.auth import get_current_admin
 from backend.utils.shell import run
+
+DANGEROUS_CHARS = re.compile(r"[`$;|&\\]")
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ddns", tags=["ddns"], dependencies=[Depends(get_current_admin)])
@@ -82,6 +85,12 @@ def save_config(body: DDNSConfig, username: str = Depends(get_current_admin)):
         if "\n" in val or "\r" in val:
             raise HTTPException(status_code=400, detail=f"Newlines not allowed in {field_name}")
 
+    # Reject shell metacharacters in non-password fields
+    for field_name in ("server", "protocol", "login", "domain"):
+        val = getattr(body, field_name)
+        if DANGEROUS_CHARS.search(val):
+            raise HTTPException(status_code=400, detail=f"Invalid characters in {field_name}")
+
     # Escape single quotes in password to prevent config injection
     safe_password = body.password.replace("'", "'\\''")
 
@@ -103,7 +112,8 @@ def save_config(body: DDNSConfig, username: str = Depends(get_current_admin)):
         input=content, capture_output=True, text=True, timeout=10,
     )
     if proc.returncode != 0:
-        raise HTTPException(status_code=500, detail=f"Failed to write config: {proc.stderr}")
+        logger.error(f"Failed to write ddclient config: {proc.stderr}")
+        raise HTTPException(status_code=500, detail="Failed to write DDNS configuration")
 
     restart = _nsenter("systemctl", "restart", "ddclient")
     if not restart.ok:

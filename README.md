@@ -31,7 +31,7 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 
 **System** -- Services control, hostname/timezone/NTP, reboot/shutdown from the UI, package updates, journalctl log viewer, alerts (email, Slack, PagerDuty, Pushover, webhook), config export/import, TrueNAS Core migration (users, SMB shares, snapshot policies, scrub/cloud sync tasks), browser-based web shell
 
-**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, token revocation on logout/password change, audit logging
+**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, token revocation on logout/password change, audit logging, input validation with dangerous-character blocklists (NFS, DDNS, shares), path traversal protection via canonicalization, WebSocket origin validation, XSS-safe QR rendering
 
 **UI** -- Dark mode, collapsible sidebar, drag-and-drop dashboard, configurable polling interval
 

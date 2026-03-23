@@ -18,6 +18,16 @@ router = APIRouter(prefix="/shell", tags=["shell"])
 
 @router.websocket("/ws")
 async def shell_ws(websocket: WebSocket):
+    # Validate Origin header to prevent cross-site WebSocket hijacking
+    origin = websocket.headers.get("origin", "")
+    host = websocket.headers.get("host", "")
+    if origin:
+        from urllib.parse import urlparse
+        origin_host = urlparse(origin).netloc
+        if origin_host and origin_host != host:
+            await websocket.close(code=4403, reason="Origin not allowed")
+            return
+
     # Auth: extract nas_session cookie, decode JWT, reject if invalid
     token = websocket.cookies.get(COOKIE_NAME)
     username = decode_token(token) if token else None

@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,10 +17,11 @@ STATIC_PATH_PREFIXES = ("/mnt/", "/data/", "/pool/", "/tank/")
 
 
 def _is_valid_share_path(path: str) -> bool:
-    if path.startswith(STATIC_PATH_PREFIXES):
+    canonical = os.path.realpath(path)
+    if any(canonical.startswith(p) for p in STATIC_PATH_PREFIXES):
         return True
     pool_mounts = get_pool_mountpoints()
-    return any(path.startswith(m) for m in pool_mounts)
+    return any(canonical.startswith(m) for m in pool_mounts)
 VALID_OWNER = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 
