@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "/data/nas.db")
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -326,6 +326,17 @@ def init_db():
             db.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (10,),
+            )
+            db.commit()
+
+        if current_version < 11:
+            logger.info("Applying schema v11 — snapshot policy last_run tracking")
+            db.executescript("""
+                ALTER TABLE snapshot_policies ADD COLUMN last_run TEXT DEFAULT NULL;
+            """)
+            db.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (11,),
             )
             db.commit()
 

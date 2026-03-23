@@ -69,7 +69,7 @@ export default function SnapshotTasks() {
         retention_unit: form.retention_unit,
         naming_schema: form.naming_schema,
         recursive: form.recursive ? 1 : 0,
-        exclude: textToExclude(form.exclude),
+        exclude: form.exclude ? form.exclude.split(',').map(s => s.trim()).filter(Boolean) : [],
         enabled: form.enabled ? 1 : 0,
       }
       if (editId) {
@@ -80,7 +80,8 @@ export default function SnapshotTasks() {
       resetForm()
       load()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Save failed')
+      const detail = err.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(d => d.msg || d.message || JSON.stringify(d)).join('; ') : 'Save failed')
     }
   }
 
