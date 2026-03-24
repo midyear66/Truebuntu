@@ -15,10 +15,19 @@ export default function Settings() {
 
   // NTP state
   const [ntpServers, setNtpServers] = useState([])
+  const [ntpSources, setNtpSources] = useState([])
+  const [ntpSettings, setNtpSettings] = useState({ serve_lan: false })
+  const [ntpActive, setNtpActive] = useState(false)
   const [ntpLoading, setNtpLoading] = useState(false)
   const [ntpAddress, setNtpAddress] = useState('')
+  const [ntpType, setNtpType] = useState('server')
   const [ntpIburst, setNtpIburst] = useState(true)
   const [ntpPrefer, setNtpPrefer] = useState(false)
+  const [ntpMinpoll, setNtpMinpoll] = useState('')
+  const [ntpMaxpoll, setNtpMaxpoll] = useState('')
+  const [ntpEditAddress, setNtpEditAddress] = useState(null)
+  const [tzSaving, setTzSaving] = useState(false)
+  const [tzMsg, setTzMsg] = useState('')
 
   // Migration state
   const [migFile, setMigFile] = useState(null)
@@ -86,11 +95,28 @@ export default function Settings() {
     }
   }
 
+  const saveTimezone = async () => {
+    setTzSaving(true)
+    setTzMsg('')
+    setError('')
+    try {
+      await api.put('/system/general', { timezone })
+      setTzMsg('Timezone saved')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to save timezone')
+    } finally {
+      setTzSaving(false)
+    }
+  }
+
   const loadNtp = async () => {
     setNtpLoading(true)
     try {
       const res = await api.get('/system/ntp')
-      setNtpServers(res.data)
+      setNtpServers(res.data.servers || [])
+      setNtpSources(res.data.sources || [])
+      setNtpSettings(res.data.settings || { serve_lan: false })
+      setNtpActive(res.data.active || false)
     } catch (err) {
       setError('Failed to load NTP servers')
     } finally {
@@ -103,13 +129,70 @@ export default function Settings() {
     if (!ntpAddress) return
     setError('')
     try {
-      await api.post('/system/ntp', { address: ntpAddress, iburst: ntpIburst, prefer: ntpPrefer })
+      await api.post('/system/ntp', {
+        address: ntpAddress, type: ntpType,
+        iburst: ntpIburst, prefer: ntpPrefer,
+        minpoll: ntpMinpoll ? parseInt(ntpMinpoll) : null,
+        maxpoll: ntpMaxpoll ? parseInt(ntpMaxpoll) : null,
+      })
       setNtpAddress('')
+      setNtpType('server')
       setNtpIburst(true)
       setNtpPrefer(false)
+      setNtpMinpoll('')
+      setNtpMaxpoll('')
       loadNtp()
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to add NTP server')
+    }
+  }
+
+  const startEditNtp = (s) => {
+    setNtpAddress(s.address)
+    setNtpType(s.type || 'server')
+    setNtpIburst(s.iburst)
+    setNtpPrefer(s.prefer)
+    setNtpMinpoll(s.minpoll != null ? String(s.minpoll) : '')
+    setNtpMaxpoll(s.maxpoll != null ? String(s.maxpoll) : '')
+    setNtpEditAddress(s.address)
+  }
+
+  const cancelEditNtp = () => {
+    setNtpAddress('')
+    setNtpType('server')
+    setNtpIburst(true)
+    setNtpPrefer(false)
+    setNtpMinpoll('')
+    setNtpMaxpoll('')
+    setNtpEditAddress(null)
+  }
+
+  const editNtp = async (e) => {
+    e.preventDefault()
+    if (!ntpAddress) return
+    setError('')
+    try {
+      await api.put(`/system/ntp/${encodeURIComponent(ntpEditAddress)}`, {
+        address: ntpAddress, type: ntpType,
+        iburst: ntpIburst, prefer: ntpPrefer,
+        minpoll: ntpMinpoll ? parseInt(ntpMinpoll) : null,
+        maxpoll: ntpMaxpoll ? parseInt(ntpMaxpoll) : null,
+      })
+      cancelEditNtp()
+      loadNtp()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to update NTP server')
+    }
+  }
+
+  const toggleServeLan = async () => {
+    setError('')
+    try {
+      const newVal = !ntpSettings.serve_lan
+      await api.put('/system/ntp/settings', { serve_lan: newVal })
+      setNtpSettings({ ...ntpSettings, serve_lan: newVal })
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to update NTP settings')
     }
   }
 
@@ -381,6 +464,111 @@ export default function Settings() {
       {/* NTP */}
       {tab === 'ntp' && (
         <div className="space-y-6">
+          {/* Timezone */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+            <h3 className="text-lg font-semibold mb-2">Timezone</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Set the system timezone. This affects scheduled tasks, snapshot naming, and log timestamps.</p>
+            <div className="flex items-end gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Timezone</label>
+                <select
+                  value={timezone}
+                  onChange={e => { setTimezone(e.target.value); setTzMsg('') }}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                >
+                  {timezones.map(tz => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={saveTimezone}
+                disabled={tzSaving}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {tzSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+            {tzMsg && <div className="mt-2 text-sm text-green-600">{tzMsg}</div>}
+          </div>
+
+          {/* Chrony status + Serve LAN */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">NTP Service</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Chrony NTP daemon — synchronizes system clock with remote time servers.</p>
+              </div>
+              <span className={`text-xs px-2.5 py-1 rounded font-medium ${ntpActive ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}`}>
+                {ntpActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded">
+              <div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Serve NTP to LAN</span>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Allow other devices on your network to sync their clocks from this NAS.</p>
+              </div>
+              <button
+                onClick={toggleServeLan}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${ntpSettings.serve_lan ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ntpSettings.serve_lan ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Source Statistics */}
+          {ntpSources.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="p-4 border-b dark:border-gray-700">
+                <h3 className="text-lg font-semibold">Sync Status</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Live synchronization quality from chronyc sources.</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">State</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Source</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Stratum</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Poll</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Offset</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ntpSources.map(s => {
+                    const stateColors = {
+                      synced: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+                      candidate: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+                      unused: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+                      unreachable: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+                      falseticker: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+                    }
+                    const offsetMs = parseFloat(s.offset)
+                    const offsetStr = !isNaN(offsetMs) ? `${(offsetMs * 1000).toFixed(2)} ms` : s.offset
+                    const errMs = parseFloat(s.error)
+                    const errStr = !isNaN(errMs) ? `${(errMs * 1000).toFixed(2)} ms` : s.error
+                    return (
+                      <tr key={s.address} className="border-t dark:border-gray-700">
+                        <td className="px-4 py-2">
+                          <span className={`text-xs px-2 py-0.5 rounded ${stateColors[s.state] || stateColors.unused}`}>{s.state}</span>
+                        </td>
+                        <td className="px-4 py-2 font-mono text-xs">{s.source}</td>
+                        <td className="px-4 py-2 font-mono text-xs">{s.name || s.address}</td>
+                        <td className="px-4 py-2">{s.stratum}</td>
+                        <td className="px-4 py-2">{Math.pow(2, s.poll)}s</td>
+                        <td className="px-4 py-2 font-mono text-xs">{offsetStr}</td>
+                        <td className="px-4 py-2 font-mono text-xs">{errStr}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* NTP Servers */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
               <h3 className="text-lg font-semibold">NTP Servers</h3>
@@ -392,25 +580,32 @@ export default function Settings() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Type</th>
                     <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Address</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">IBurst</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Prefer</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Options</th>
                     <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ntpServers.map(s => (
                     <tr key={s.address} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-4 py-2">
+                        <span className={`text-xs px-2 py-0.5 rounded ${s.type === 'pool' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                          {s.type}
+                        </span>
+                      </td>
                       <td className="px-4 py-2 font-mono">{s.address}</td>
-                      <td className="px-4 py-2">{s.iburst ? 'Yes' : 'No'}</td>
-                      <td className="px-4 py-2">{s.prefer ? 'Yes' : 'No'}</td>
+                      <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
+                        {[
+                          s.iburst && 'iburst',
+                          s.prefer && 'prefer',
+                          s.minpoll != null && `minpoll ${s.minpoll}`,
+                          s.maxpoll != null && `maxpoll ${s.maxpoll}`,
+                        ].filter(Boolean).join(', ') || '—'}
+                      </td>
                       <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => removeNtp(s.address)}
-                          className="text-red-600 hover:text-red-800 text-xs"
-                        >
-                          Remove
-                        </button>
+                        <button onClick={() => startEditNtp(s)} className="text-gray-600 dark:text-gray-300 hover:text-gray-800 text-xs mr-2">Edit</button>
+                        <button onClick={() => removeNtp(s.address)} className="text-red-600 hover:text-red-800 text-xs">Remove</button>
                       </td>
                     </tr>
                   ))}
@@ -422,34 +617,71 @@ export default function Settings() {
             )}
           </div>
 
+          {/* Add / Edit NTP Server */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-            <h3 className="text-lg font-semibold mb-4">Add NTP Server</h3>
-            <form onSubmit={addNtp} className="flex items-end gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Address</label>
-                <input
-                  type="text"
-                  value={ntpAddress}
-                  onChange={e => setNtpAddress(e.target.value)}
-                  placeholder="pool.ntp.org"
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">{ntpEditAddress ? 'Edit NTP Server' : 'Add NTP Server'}</h3>
+              {ntpEditAddress && (
+                <button onClick={cancelEditNtp} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Cancel Edit</button>
+              )}
+            </div>
+            <form onSubmit={ntpEditAddress ? editNtp : addNtp} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={ntpAddress}
+                    onChange={e => setNtpAddress(e.target.value)}
+                    placeholder="pool.ntp.org"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Type</label>
+                  <select
+                    value={ntpType}
+                    onChange={e => setNtpType(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                  >
+                    <option value="server">Server (single host)</option>
+                    <option value="pool">Pool (rotates through multiple hosts)</option>
+                  </select>
+                </div>
               </div>
-              <label className="flex items-center gap-1 text-sm">
-                <input type="checkbox" checked={ntpIburst} onChange={e => setNtpIburst(e.target.checked)} />
-                IBurst
-              </label>
-              <label className="flex items-center gap-1 text-sm">
-                <input type="checkbox" checked={ntpPrefer} onChange={e => setNtpPrefer(e.target.checked)} />
-                Prefer
-              </label>
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Add
-              </button>
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200">
+                  <input type="checkbox" checked={ntpIburst} onChange={e => setNtpIburst(e.target.checked)} className="rounded" />
+                  IBurst
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200">
+                  <input type="checkbox" checked={ntpPrefer} onChange={e => setNtpPrefer(e.target.checked)} className="rounded" />
+                  Prefer
+                </label>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Min Poll (log2 sec)</label>
+                  <input
+                    type="number" min="0" max="17"
+                    value={ntpMinpoll}
+                    onChange={e => setNtpMinpoll(e.target.value)}
+                    placeholder="—"
+                    className="w-20 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-sm dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Max Poll (log2 sec)</label>
+                  <input
+                    type="number" min="0" max="17"
+                    value={ntpMaxpoll}
+                    onChange={e => setNtpMaxpoll(e.target.value)}
+                    placeholder="—"
+                    className="w-20 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-sm dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </div>
+                <button type="submit" className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">{ntpEditAddress ? 'Save' : 'Add'}</button>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Poll intervals: 6 = 64s, 8 = 256s, 10 = 1024s (~17 min). Leave blank for chrony defaults.</p>
             </form>
           </div>
         </div>
