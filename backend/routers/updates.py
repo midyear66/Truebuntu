@@ -92,17 +92,45 @@ def get_available(username: str = Depends(get_current_admin)):
     }
 
 
+_NOISE_PATTERNS = (
+    "debconf:", "needrestart", "(Reading database",
+    "Processing triggers", "update-initramfs",
+)
+
+
+def _clean_apt_output(output: str) -> str:
+    """Remove noisy dpkg/debconf lines that confuse users."""
+    lines = []
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(stripped.startswith(p) for p in _NOISE_PATTERNS):
+            continue
+        lines.append(line)
+    return "\n".join(lines)
+
+
 @router.post("/apply")
 def apply_updates(username: str = Depends(get_current_admin)):
     result = run([
         "nsenter", "-t", "1", "-m", "-u", "-n", "-i",
-        "apt-get", "upgrade", "-y",
+        "env", "DEBIAN_FRONTEND=noninteractive",
+        "apt-get", "upgrade", "-y", "-o", "Dpkg::Options::=--force-confold",
     ], timeout=300)
     if not result.ok:
-        raise HTTPException(status_code=500, detail=f"Upgrade failed: {result.stderr.strip()}")
+        # Filter misleading messages from stderr before reporting
+        stderr = result.stderr or ""
+        for noise in _NOISE_PATTERNS:
+            stderr = "\n".join(l for l in stderr.splitlines() if noise not in l)
+        stderr = stderr.strip()
+        if stderr:
+            raise HTTPException(status_code=500, detail=f"Upgrade failed: {stderr}")
+        # If stderr was only noise but rc != 0, still report
+        raise HTTPException(status_code=500, detail="Upgrade completed with warnings")
 
     # Clear cache after applying
     _save_setting("updates_available", "[]")
     _save_setting("updates_last_check", datetime.now(timezone.utc).isoformat())
 
-    return {"message": "Updates applied", "output": result.stdout}
+    return {"message": "Updates applied", "output": _clean_apt_output(result.stdout)}
