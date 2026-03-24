@@ -20,6 +20,13 @@ const inputCls = 'w-full border border-gray-300 dark:border-gray-600 rounded px-
 const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'
 const helpCls = 'text-xs text-gray-500 dark:text-gray-400 mt-1'
 
+function extractError(err, fallback) {
+  const detail = err.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map(d => d.msg || d.message || JSON.stringify(d)).join('; ')
+  return fallback
+}
+
 export default function SnapshotTasks() {
   const [policies, setPolicies] = useState([])
   const [datasets, setDatasets] = useState([])
@@ -80,8 +87,7 @@ export default function SnapshotTasks() {
       resetForm()
       load()
     } catch (err) {
-      const detail = err.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(d => d.msg || d.message || JSON.stringify(d)).join('; ') : 'Save failed')
+      setError(extractError(err, 'Save failed'))
     }
   }
 
@@ -103,7 +109,7 @@ export default function SnapshotTasks() {
       await api.delete(`/snapshot-policies/${id}`)
       load()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Delete failed')
+      setError(extractError(err, 'Delete failed'))
     }
   }
 

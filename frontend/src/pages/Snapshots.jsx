@@ -19,6 +19,13 @@ const ChevronDown = () => (
   </svg>
 )
 
+function extractError(err, fallback) {
+  const detail = err.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map(d => d.msg || d.message || JSON.stringify(d)).join('; ')
+  return fallback
+}
+
 export default function Snapshots() {
   const [snapshots, setSnapshots] = useState([])
   const [datasets, setDatasets] = useState([])
@@ -62,7 +69,7 @@ export default function Snapshots() {
       setRecursive(false)
       load()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Create failed')
+      setError(extractError(err, 'Create failed'))
     }
   }
 
@@ -72,7 +79,7 @@ export default function Snapshots() {
       setConfirmAction(null)
       load()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Delete failed')
+      setError(extractError(err, 'Delete failed'))
     }
   }
 
@@ -85,7 +92,7 @@ export default function Snapshots() {
       setSelectedRows(new Set())
       load()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Batch delete failed')
+      setError(extractError(err, 'Batch delete failed'))
     }
   }
 
@@ -99,7 +106,7 @@ export default function Snapshots() {
       if (err.response?.status === 409) {
         setError('A rollback is already in progress for this dataset')
       } else {
-        setError(err.response?.data?.detail || 'Rollback failed')
+        setError(extractError(err, 'Rollback failed'))
       }
     }
   }
@@ -111,7 +118,7 @@ export default function Snapshots() {
       setCloneTarget('')
       load()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Clone failed')
+      setError(extractError(err, 'Clone failed'))
     }
   }
 
