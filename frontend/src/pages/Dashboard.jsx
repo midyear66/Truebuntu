@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../api'
 import StatusBadge from '../components/StatusBadge'
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
@@ -486,6 +487,7 @@ function SnapshotsCard({ snapshots }) {
           <div className="text-xs text-gray-400 dark:text-gray-500">{snap.creation}</div>
         </div>
       ))}
+      <Link to="/snapshots" className="block mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline">View All Snapshots</Link>
     </Card>
   )
 }

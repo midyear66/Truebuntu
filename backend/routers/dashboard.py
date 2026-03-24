@@ -27,7 +27,7 @@ def dashboard():
         "cpu": _get_cpu_info(),
         "pools": _get_pool_details(),
         "datasets": parse_zfs_list(),
-        "recent_snapshots": list_snapshots()[-10:],
+        "recent_snapshots": list_snapshots()[-4:],
         "services": _get_service_states(),
         "disk_temps": _get_disk_temps(),
         "upcoming_tasks": _get_upcoming_tasks(),
