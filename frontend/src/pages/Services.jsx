@@ -24,7 +24,7 @@ const INSTALL_COMMANDS = {
   nmbd: 'apt install samba',
   'nfs-kernel-server': 'apt install nfs-kernel-server',
   ssh: 'apt install openssh-server',
-  'zfs-zed': 'apt install zfsutils-linux',
+  'zfs-zed': "sed -i 's/main/main contrib/' /etc/apt/sources.list && apt update && apt install zfsutils-linux linux-headers-$(uname -r)",
   docker: 'apt install docker.io',
 }
 
