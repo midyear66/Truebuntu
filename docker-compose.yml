@@ -20,7 +20,6 @@ services:
       - /var/run/dbus:/var/run/dbus:ro
       - /etc/netplan:/etc/netplan
       - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
       - nas-data:/data
     env_file: .env
 

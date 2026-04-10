@@ -251,6 +251,7 @@ The container runs in **privileged mode** with **host network and PID namespace*
 | `/etc/gshadow` (ro)  | Group password verification    |
 | `/var/lib/samba`     | Samba state and databases      |
 | `/etc/chrony`        | NTP server configuration       |
+| `/etc/localtime` (ro)| System timezone (symlink)      |
 | `/etc/netplan`       | Network interface configuration|
 | `/var/run/dbus` (ro) | D-Bus for systemd interaction  |
 | `nas-data:/data`     | Persistent SQLite database     |
