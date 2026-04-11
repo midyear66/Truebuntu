@@ -1,13 +1,14 @@
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends
 
 from backend.database import get_db
 from backend.utils.auth import get_current_user
 from backend.utils.shell import run
-from backend.utils.zfs import parse_zpool_list, parse_zpool_status, parse_zfs_list, list_snapshots
+from backend.utils.zfs import parse_zpool_list, parse_zpool_status, parse_zfs_list, list_recent_snapshots
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)])
@@ -19,23 +20,40 @@ CAPACITY_THRESHOLD = 80
 
 NSENTER = ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--"]
 
+# Simple TTL cache for slow-changing data. The dashboard polls every ~5s,
+# so caching for 30–60s avoids hammering smartctl/ethtool/zfs every tick.
+_cache: dict[str, tuple[float, object]] = {}
+
+
+def _cached(key: str, ttl: float, fn):
+    now = time.monotonic()
+    entry = _cache.get(key)
+    if entry and now - entry[0] < ttl:
+        return entry[1]
+    value = fn()
+    _cache[key] = (now, value)
+    return value
+
 
 @router.get("")
 def dashboard():
-    return {
-        "system": _get_system_info(),
-        "cpu": _get_cpu_info(),
-        "pools": _get_pool_details(),
-        "datasets": parse_zfs_list(),
-        "recent_snapshots": list_snapshots()[-4:],
-        "services": _get_service_states(),
-        "disk_temps": _get_disk_temps(),
-        "upcoming_tasks": _get_upcoming_tasks(),
-        "load_average": _get_load_average(),
-        "memory": _get_memory(),
-        "network": _get_network_stats(),
-        "interfaces": _get_interfaces(),
+    sections = {
+        "system": _get_system_info,
+        "cpu": _get_cpu_info,
+        "pools": _get_pool_details,
+        "datasets": parse_zfs_list,
+        "recent_snapshots": lambda: _cached("recent_snapshots", 30, lambda: list_recent_snapshots(4)),
+        "services": _get_service_states,
+        "disk_temps": lambda: _cached("disk_temps", 60, _get_disk_temps),
+        "upcoming_tasks": _get_upcoming_tasks,
+        "load_average": _get_load_average,
+        "memory": _get_memory,
+        "network": _get_network_stats,
+        "interfaces": _get_interfaces,
     }
+    with ThreadPoolExecutor(max_workers=len(sections)) as executor:
+        futures = {key: executor.submit(fn) for key, fn in sections.items()}
+        return {key: future.result() for key, future in futures.items()}
 
 
 # --- System Info ---
@@ -363,11 +381,71 @@ def _normalize_speed(raw: str) -> str:
 
 # --- Interfaces ---
 
+def _build_iface_static() -> dict:
+    """Detect physical interfaces and probe their speeds via ethtool/sysfs.
+
+    These results rarely change, so we cache them and avoid running ~3-5
+    nsenter+ethtool calls per physical NIC on every 5s dashboard poll.
+    """
+    physical_set = set()
+    proc_net = run([*NSENTER, "cat", "/proc/net/dev"])
+    if proc_net.ok:
+        for line in proc_net.stdout.splitlines()[2:]:
+            iface_name = line.split(":")[0].strip()
+            if iface_name:
+                check = run([*NSENTER, "cat", f"/sys/class/net/{iface_name}/device/uevent"], timeout=5)
+                if check.ok:
+                    physical_set.add(iface_name)
+
+    speed_map: dict[str, tuple[str | None, str | None]] = {}
+    for name in physical_set:
+        speed = None
+        duplex = None
+        eth_result = run([*NSENTER, "ethtool", name])
+        if eth_result.ok:
+            for line in eth_result.stdout.splitlines():
+                line = line.strip()
+                if line.startswith("Speed:"):
+                    val = line.split(":", 1)[1].strip()
+                    if "Unknown" not in val:
+                        speed = _normalize_speed(val)
+                elif line.startswith("Duplex:"):
+                    val = line.split(":", 1)[1].strip()
+                    if "Unknown" not in val:
+                        duplex = val
+        # Fallback: read speed from sysfs (returns Mb/s integer, -1 if unknown)
+        if not speed:
+            spd = run([*NSENTER, "cat", f"/sys/class/net/{name}/speed"], timeout=5)
+            if spd.ok:
+                try:
+                    mbps = int(spd.stdout.strip())
+                    if mbps > 0:
+                        speed = f"{mbps // 1000} Gb/s" if mbps >= 1000 else f"{mbps} Mb/s"
+                except ValueError:
+                    pass
+        # Last resort: show driver name for virtual NICs (virtio, vmxnet3, etc.)
+        if not speed:
+            drv = run([*NSENTER, "cat", f"/sys/class/net/{name}/device/uevent"], timeout=5)
+            if drv.ok:
+                for line in drv.stdout.splitlines():
+                    if line.startswith("DRIVER="):
+                        speed = line.split("=", 1)[1].strip()
+                        break
+        speed_map[name] = (speed, duplex)
+
+    return {"physical_set": physical_set, "speed_map": speed_map}
+
+
 def _get_interfaces() -> list[dict]:
     """Build rich interface list with link state, addresses, speed, and traffic bytes."""
-    # Get ip addr/link data via nsenter
+    static = _cached("iface_static", 60, _build_iface_static)
+    physical_set: set = static["physical_set"]
+    speed_map: dict = static["speed_map"]
+
+    # Live data: addresses, link state, traffic bytes — fetched every call.
     addr_result = run([*NSENTER, "ip", "-j", "addr", "show"])
     link_result = run([*NSENTER, "ip", "-j", "link", "show"])
+    proc_net = run([*NSENTER, "cat", "/proc/net/dev"])
 
     addr_data = []
     link_data = []
@@ -382,20 +460,8 @@ def _get_interfaces() -> list[dict]:
         except json.JSONDecodeError:
             pass
 
-    # Detect physical interfaces
-    physical_set = set()
-    proc_net = run([*NSENTER, "cat", "/proc/net/dev"])
-    if proc_net.ok:
-        for line in proc_net.stdout.splitlines()[2:]:
-            iface_name = line.split(":")[0].strip()
-            if iface_name:
-                check = run([*NSENTER, "cat", f"/sys/class/net/{iface_name}/device/uevent"], timeout=5)
-                if check.ok:
-                    physical_set.add(iface_name)
-
     link_map = {link.get("ifname", ""): link for link in link_data}
 
-    # Parse /proc/net/dev for rx/tx bytes
     traffic_map = {}
     if proc_net.ok:
         for line in proc_net.stdout.strip().splitlines()[2:]:
@@ -444,41 +510,7 @@ def _get_interfaces() -> list[dict]:
         mac = iface.get("address", "")
         mtu = iface.get("mtu")
 
-        ethtool = {"speed": None, "duplex": None}
-        if iface_type == "physical":
-            eth_result = run([*NSENTER, "ethtool", name])
-            if eth_result.ok:
-                for line in eth_result.stdout.splitlines():
-                    line = line.strip()
-                    if line.startswith("Speed:"):
-                        val = line.split(":", 1)[1].strip()
-                        if "Unknown" not in val:
-                            ethtool["speed"] = _normalize_speed(val)
-                    elif line.startswith("Duplex:"):
-                        val = line.split(":", 1)[1].strip()
-                        if "Unknown" not in val:
-                            ethtool["duplex"] = val
-            # Fallback: read speed from sysfs (returns Mb/s integer, -1 if unknown)
-            if not ethtool["speed"]:
-                spd = run([*NSENTER, "cat", f"/sys/class/net/{name}/speed"], timeout=5)
-                if spd.ok:
-                    try:
-                        mbps = int(spd.stdout.strip())
-                        if mbps > 0:
-                            if mbps >= 1000:
-                                ethtool["speed"] = f"{mbps // 1000} Gb/s"
-                            else:
-                                ethtool["speed"] = f"{mbps} Mb/s"
-                    except ValueError:
-                        pass
-            # Last resort: show driver name for virtual NICs (virtio, vmxnet3, etc.)
-            if not ethtool["speed"]:
-                drv = run([*NSENTER, "cat", f"/sys/class/net/{name}/device/uevent"], timeout=5)
-                if drv.ok:
-                    for line in drv.stdout.splitlines():
-                        if line.startswith("DRIVER="):
-                            ethtool["speed"] = line.split("=", 1)[1].strip()
-                            break
+        speed, duplex = speed_map.get(name, (None, None)) if iface_type == "physical" else (None, None)
 
         traffic = traffic_map.get(name, {"rx_bytes": 0, "tx_bytes": 0})
 
@@ -489,8 +521,8 @@ def _get_interfaces() -> list[dict]:
             "addresses": addrs,
             "mac": mac,
             "mtu": mtu,
-            "speed": ethtool["speed"],
-            "duplex": ethtool["duplex"],
+            "speed": speed,
+            "duplex": duplex,
             "rx_bytes": traffic["rx_bytes"],
             "tx_bytes": traffic["tx_bytes"],
         })

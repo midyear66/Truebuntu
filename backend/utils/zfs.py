@@ -266,6 +266,39 @@ def parse_zfs_get(target: str, properties: list[str]) -> dict:
     return values
 
 
+def list_recent_snapshots(limit: int = 10) -> list[dict]:
+    """Return the N most recently created snapshots, newest first.
+
+    Uses `zfs list -S creation` so the head of the output is what we want;
+    avoids materializing every snapshot when only a handful are needed.
+    """
+    cmd = [
+        "zfs", "list", "-H", "-t", "snapshot",
+        "-S", "creation",
+        "-o", "name,used,refer,creation",
+    ]
+    result = run(cmd)
+    if not result.ok:
+        return []
+    snapshots = []
+    for line in result.stdout.splitlines():
+        if len(snapshots) >= limit:
+            break
+        fields = line.split("\t")
+        if len(fields) >= 4:
+            name = fields[0]
+            ds, snap = name.rsplit("@", 1) if "@" in name else (name, "")
+            snapshots.append({
+                "name": name,
+                "dataset": ds,
+                "snapshot": snap,
+                "used": fields[1],
+                "refer": fields[2],
+                "creation": fields[3],
+            })
+    return snapshots
+
+
 def list_snapshots(dataset: str | None = None) -> list[dict]:
     cmd = ["zfs", "list", "-H", "-t", "snapshot", "-o", "name,used,refer,creation"]
     if dataset:
