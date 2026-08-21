@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import api from '../api'
+import useResource from '../useResource'
 import CronPicker from '../components/CronPicker'
 import useJobPoller from '../useJobPoller'
 
 export default function RsyncTasks() {
-  const [tasks, setTasks] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: tasks, setData: setTasks, loading, error, setError, reload: load } =
+    useResource('/rsync-tasks', { initial: [], errorMessage: 'Failed to load rsync tasks' })
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({
@@ -14,19 +15,7 @@ export default function RsyncTasks() {
     schedule: '0 0 * * *', extra_args: '', recursive: true, archive: true,
     compress: true, delete_dest: false, enabled: true,
   })
-  const [error, setError] = useState('')
   const { submitJob, cancelJob, getJobForResource } = useJobPoller()
-
-  const load = async () => {
-    try {
-      const res = await api.get('/rsync-tasks')
-      setTasks(res.data)
-    } catch (err) {
-      setError('Failed to load rsync tasks')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const resetForm = () => {
     setForm({
@@ -87,8 +76,6 @@ export default function RsyncTasks() {
       setError(err.response?.data?.detail || 'Delete failed')
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 

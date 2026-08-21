@@ -1,27 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import api from '../api'
+import useResource from '../useResource'
 import CronPicker from '../components/CronPicker'
 import useJobPoller from '../useJobPoller'
 
 export default function CronJobs() {
-  const [jobs, setJobs] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: jobs, setData: setJobs, loading, error, setError, reload: load } =
+    useResource('/cron-jobs', { initial: [], errorMessage: 'Failed to load cron jobs' })
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', command: '', schedule: '0 * * * *', user: 'root', description: '', enabled: true })
-  const [error, setError] = useState('')
   const { submitJob, cancelJob, getJobForResource } = useJobPoller()
-
-  const load = async () => {
-    try {
-      const res = await api.get('/cron-jobs')
-      setJobs(res.data)
-    } catch (err) {
-      setError('Failed to load cron jobs')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const resetForm = () => {
     setForm({ name: '', command: '', schedule: '0 * * * *', user: 'root', description: '', enabled: true })
@@ -71,8 +60,6 @@ export default function CronJobs() {
       setError(err.response?.data?.detail || 'Delete failed')
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 

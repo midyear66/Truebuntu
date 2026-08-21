@@ -1,27 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import api from '../api'
+import useResource from '../useResource'
 
 const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = Array.from({ length: 60 }, (_, i) => i)
 
 export default function ResilverPriority() {
-  const [config, setConfig] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data: config, setData: setConfig, loading, error, setError, reload: load } =
+    useResource('/resilver', { errorMessage: 'Failed to load resilver config' })
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-
-  const load = async () => {
-    try {
-      const res = await api.get('/resilver')
-      setConfig(res.data)
-    } catch (err) {
-      setError('Failed to load resilver config')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const toggleWeekday = (day) => {
     setConfig(prev => {
@@ -54,8 +43,6 @@ export default function ResilverPriority() {
       setSaving(false)
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
   if (!config) return <div className="text-red-500">Failed to load config</div>

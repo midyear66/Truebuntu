@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import api from '../api'
+import useResource from '../useResource'
 import useJobPoller from '../useJobPoller'
 
 export default function Replication() {
-  const [tasks, setTasks] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: tasks, setData: setTasks, loading, error, setError, reload: load } =
+    useResource('/replication', { initial: [], errorMessage: 'Failed to load replication tasks' })
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({
@@ -12,19 +13,7 @@ export default function Replication() {
     destination_user: 'root', destination_dataset: '', recursive: false,
     incremental: true, ssh_key_path: '', schedule: '0 0 * * *', enabled: true,
   })
-  const [error, setError] = useState('')
   const { submitJob, cancelJob, getJobForResource } = useJobPoller()
-
-  const load = async () => {
-    try {
-      const res = await api.get('/replication')
-      setTasks(res.data)
-    } catch (err) {
-      setError('Failed to load replication tasks')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const resetForm = () => {
     setForm({
@@ -84,8 +73,6 @@ export default function Replication() {
       setError(err.response?.data?.detail || 'Delete failed')
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 

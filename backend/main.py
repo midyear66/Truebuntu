@@ -160,6 +160,8 @@ def startup():
     JobManager().cleanup_stale()
     from backend.utils.snapshot_scheduler import start_snapshot_scheduler
     start_snapshot_scheduler()
+    from backend.routers.dashboard import start_dashboard_collector
+    start_dashboard_collector()
     logger.info("Truebuntu started")
 
 
