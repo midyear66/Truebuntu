@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import api from './api'
+import api, { SESSION_EXPIRED_EVENT } from './api'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
@@ -48,6 +48,20 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [needsSetup, setNeedsSetup] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [sessionNotice, setSessionNotice] = useState('')
+
+  // Any API call that comes back 401 means the session is gone — expired, or
+  // revoked by a logout or password change elsewhere. Drop to the login form
+  // and say why, instead of leaving each page to render its own error string.
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null)
+      setIsAdmin(false)
+      setSessionNotice('Your session ended. Please sign in again.')
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
+  }, [])
 
   useEffect(() => {
     const check = async () => {
@@ -89,7 +103,14 @@ function App() {
   if (!user) {
     return (
       <BrowserRouter>
-        <Login onLogin={(username, admin) => { setUser(username); setIsAdmin(!!admin) }} />
+        <Login
+          notice={sessionNotice}
+          onLogin={(username, admin) => {
+            setSessionNotice('')
+            setUser(username)
+            setIsAdmin(!!admin)
+          }}
+        />
       </BrowserRouter>
     )
   }

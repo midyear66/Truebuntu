@@ -7,7 +7,16 @@ from pydantic import BaseModel
 
 from backend.utils.auth import get_current_admin
 from backend.utils.rate_limit import limiter
-from backend.utils.shell import run
+from backend.utils.system_users import (
+    host_group_gid,
+    create_host_group,
+    create_host_user,
+    delete_host_user,
+    add_host_user_to_group,
+    set_host_password,
+    set_samba_password,
+    delete_samba_password,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(get_current_admin)])
@@ -94,63 +103,35 @@ def create_user(req: UserCreateRequest, username: str = Depends(get_current_admi
     primary_gid = None
     if req.primary_group:
         # Use an existing group by name
-        check = subprocess.run(
-            ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "getent", "group", req.primary_group],
-            capture_output=True, text=True, timeout=10,
-        )
-        if check.returncode != 0:
+        primary_gid = host_group_gid(req.primary_group)
+        if primary_gid is None:
             raise HTTPException(status_code=400, detail=f"Group '{req.primary_group}' does not exist")
-        primary_gid = check.stdout.strip().split(":")[2]
     elif req.gid is not None:
-        # Check if GID already exists
-        check = subprocess.run(
-            ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "getent", "group", str(req.gid)],
-            capture_output=True, text=True, timeout=10,
-        )
-        if check.returncode != 0:
+        if host_group_gid(str(req.gid)) is None:
             # Create the group with the requested GID (use the username as group name)
-            proc = subprocess.run(
-                ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "groupadd", "-g", str(req.gid), req.username],
-                capture_output=True, text=True, timeout=10,
-            )
-            if proc.returncode != 0:
-                raise HTTPException(status_code=500, detail=f"Failed to create group: {proc.stderr.strip()}")
+            ok, err = create_host_group(req.username, gid=req.gid)
+            if not ok:
+                raise HTTPException(status_code=500, detail=f"Failed to create group: {err}")
         primary_gid = str(req.gid)
 
-    cmd = ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "useradd"]
-    if req.uid is not None:
-        cmd.extend(["-u", str(req.uid)])
-    if primary_gid:
-        cmd.extend(["-g", primary_gid])
-    if req.create_home:
-        cmd.append("-m")
-    else:
-        cmd.extend(["-M"])
-    if req.groups:
-        cmd.extend(["-G", ",".join(req.groups)])
-    cmd.append(req.username)
-
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-    if proc.returncode != 0:
-        raise HTTPException(status_code=500, detail=proc.stderr.strip())
-
-    # Set password via chpasswd on host
-    proc = subprocess.run(
-        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
-        input=f"{req.username}:{req.password}\n",
-        capture_output=True, text=True, timeout=10,
+    ok, err = create_host_user(
+        req.username,
+        create_home=req.create_home,
+        uid=req.uid,
+        gid=primary_gid,
+        groups=req.groups,
     )
-    if proc.returncode != 0:
-        logger.warning(f"Failed to set password for {req.username}: {proc.stderr}")
+    if not ok:
+        raise HTTPException(status_code=500, detail=err)
+
+    ok, err = set_host_password(req.username, req.password)
+    if not ok:
+        logger.warning(f"Failed to set password for {req.username}: {err}")
 
     if req.smb_user:
-        proc = subprocess.run(
-            ["smbpasswd", "-a", "-s", req.username],
-            input=f"{req.password}\n{req.password}\n",
-            capture_output=True, text=True, timeout=10,
-        )
-        if proc.returncode != 0:
-            logger.warning(f"Failed to add Samba user {req.username}: {proc.stderr}")
+        ok, err = set_samba_password(req.username, req.password)
+        if not ok:
+            logger.warning(f"Failed to add Samba user {req.username}: {err}")
 
     logger.info(f"User '{username}' created system user '{req.username}' (uid={req.uid})")
     return {"message": f"User '{req.username}' created"}
@@ -161,13 +142,10 @@ def delete_user(target_user: str, username: str = Depends(get_current_admin)):
     if not VALID_USERNAME.match(target_user):
         raise HTTPException(status_code=400, detail="Invalid username")
 
-    run(["smbpasswd", "-x", target_user])
-    proc = subprocess.run(
-        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "userdel", target_user],
-        capture_output=True, text=True, timeout=10,
-    )
-    if proc.returncode != 0:
-        raise HTTPException(status_code=500, detail=proc.stderr.strip())
+    delete_samba_password(target_user)
+    ok, err = delete_host_user(target_user)
+    if not ok:
+        raise HTTPException(status_code=500, detail=err)
 
     logger.info(f"User '{username}' deleted system user '{target_user}'")
     return {"message": f"User '{target_user}' deleted"}
@@ -181,19 +159,14 @@ def change_password(request: Request, target_user: str, req: UserPasswordRequest
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    proc = subprocess.run(
-        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
-        input=f"{target_user}:{req.password}\n",
-        capture_output=True, text=True, timeout=10,
-    )
-    if proc.returncode != 0:
+    ok, err = set_host_password(target_user, req.password)
+    if not ok:
+        logger.warning(f"chpasswd failed for {target_user}: {err}")
         raise HTTPException(status_code=500, detail="Failed to change password")
 
-    proc = subprocess.run(
-        ["smbpasswd", "-a", "-s", target_user],
-        input=f"{req.password}\n{req.password}\n",
-        capture_output=True, text=True, timeout=10,
-    )
+    ok, err = set_samba_password(target_user, req.password)
+    if not ok:
+        logger.warning(f"Failed to update Samba password for {target_user}: {err}")
 
     logger.info(f"User '{username}' changed password for '{target_user}'")
     return {"message": f"Password changed for '{target_user}'"}
@@ -204,14 +177,9 @@ def create_group(req: GroupCreateRequest, username: str = Depends(get_current_ad
     if not VALID_USERNAME.match(req.name):
         raise HTTPException(status_code=400, detail="Invalid group name")
 
-    cmd = ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "groupadd"]
-    if req.gid is not None:
-        cmd.extend(["-g", str(req.gid)])
-    cmd.append(req.name)
-
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-    if proc.returncode != 0:
-        raise HTTPException(status_code=500, detail=proc.stderr.strip())
+    ok, err = create_host_group(req.name, gid=req.gid)
+    if not ok:
+        raise HTTPException(status_code=500, detail=err)
 
     logger.info(f"User '{username}' created group '{req.name}'")
     return {"message": f"Group '{req.name}' created"}
@@ -223,12 +191,9 @@ def add_user_to_group(target_user: str, group: str, username: str = Depends(get_
         raise HTTPException(status_code=400, detail="Invalid username")
     if not VALID_USERNAME.match(group):
         raise HTTPException(status_code=400, detail="Invalid group name")
-    proc = subprocess.run(
-        ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "usermod", "-aG", group, target_user],
-        capture_output=True, text=True, timeout=10,
-    )
-    if proc.returncode != 0:
-        raise HTTPException(status_code=500, detail=proc.stderr.strip())
+    ok, err = add_host_user_to_group(target_user, group)
+    if not ok:
+        raise HTTPException(status_code=500, detail=err)
 
     logger.info(f"User '{username}' added '{target_user}' to group '{group}'")
     return {"message": f"User '{target_user}' added to group '{group}'"}

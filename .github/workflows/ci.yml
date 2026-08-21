@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, testing]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+
+      - name: Run tests
+        env:
+          # backend.utils.auth refuses to import without one; not a real secret.
+          SECRET_KEY: ci-secret-key-for-tests-only
+        run: pytest -v
+
+  image-build:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the frontend (npm run build) and the backend layer, so a broken
+      # import or a JSX syntax error fails here rather than on someone's NAS.
+      - name: Build image
+        run: docker build -t truebuntu:ci .
+
+      - name: Verify the app imports inside the image
+        run: |
+          docker run --rm \
+            -e SECRET_KEY=ci-secret-key-for-tests-only \
+            -e DATABASE_PATH=/tmp/ci.db \
+            truebuntu:ci \
+            python -c "import backend.main; print('backend.main imported OK')"
+
+      - name: Verify the frontend bundle was produced
+        run: |
+          docker run --rm truebuntu:ci \
+            sh -c 'test -f /app/static/index.html && ls -la /app/static'

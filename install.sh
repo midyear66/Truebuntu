@@ -222,7 +222,24 @@ post_install() {
     echo "  ${BOLD}Install dir:${RESET}   ${INSTALL_DIR}"
     echo "  ${BOLD}Owner:${RESET}         ${INSTALL_USER} (${INSTALL_UID}:${INSTALL_GID})"
     echo ""
-    echo "  Create your admin account on first visit."
+
+    # Surface the one-time setup token here rather than making the operator go
+    # hunting for it, while still keeping it out of reach of anyone who only has
+    # network access to the box.
+    local token
+    token=$(cd "$INSTALL_DIR" && docker compose logs truebuntu 2>/dev/null \
+            | grep -A8 "FIRST-RUN SETUP" | grep -oE "\b[0-9a-f]{32}\b" | tail -1 || true)
+
+    if [ -n "$token" ]; then
+        echo "  ${BOLD}Setup token:${RESET}   ${BOLD}${token}${RESET}"
+        echo ""
+        echo "  Enter this token on first visit to create your admin account."
+        echo "  It stops anyone else on the network claiming this server first."
+    else
+        warn "Could not read the setup token from the container log."
+        echo "  Retrieve it with:"
+        echo "    docker compose -f ${INSTALL_DIR}/docker-compose.yml logs truebuntu | grep -A6 FIRST-RUN"
+    fi
     echo ""
     echo "  ${BOLD}Useful commands:${RESET}"
     echo "    View logs:   docker compose -f ${INSTALL_DIR}/docker-compose.yml logs -f"

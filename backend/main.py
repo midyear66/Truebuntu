@@ -151,6 +151,11 @@ app.include_router(smb_users.router, prefix="/api")
 @app.on_event("startup")
 def startup():
     init_db()
+    # Print the first-run claim token before anything can reach /auth/setup.
+    from backend.database import admin_exists
+    from backend.utils.setup_claim import ensure_claim_token
+    if not admin_exists():
+        ensure_claim_token()
     from backend.utils.jobs import JobManager
     JobManager().cleanup_stale()
     from backend.utils.snapshot_scheduler import start_snapshot_scheduler

@@ -121,17 +121,30 @@ def parse_scan_progress(scan: str) -> dict | None:
     if speed_match:
         result["speed"] = speed_match.group(1).strip() + "/s"
 
-    # Total scanned / issued: "scanned 100G out of 200G" or "scanned out of 500G"
-    total_match = re.search(r"(?:out of|issued)\s+([\d.]+\s*[KMGTP])", scan)
+    # ZFS moved the size fields around in 0.8, and the number sits on the other
+    # side of the keyword in each style. Both are matched so an in-progress
+    # scrub or resilver reports its sizes on old and current pools alike:
+    #   legacy   "890G scanned out of 2.40T at 371M/s"
+    #   modern   "1.23T scanned at 512M/s, 890G issued at 371M/s, 2.40T total"
+    total_match = (
+        re.search(r"(?:out of|issued)\s+([\d.]+\s*[KMGTP])", scan)
+        or re.search(r"([\d.]+\s*[KMGTP])\s+total\b", scan)
+    )
     if total_match:
         result["total"] = total_match.group(1).strip()
 
-    scanned_match = re.search(r"scanned\s+([\d.]+\s*[KMGTP])", scan)
+    scanned_match = (
+        re.search(r"scanned\s+([\d.]+\s*[KMGTP])", scan)
+        or re.search(r"([\d.]+\s*[KMGTP])\s+scanned\b", scan)
+    )
     if scanned_match:
         result["scanned"] = scanned_match.group(1).strip()
 
-    # Repaired: "repaired 1.5G" or "repaired 0B"
-    repaired_match = re.search(r"repaired\s+([\d.]+\s*[KMGTP]?B?)", scan)
+    # Scrubs say "repaired 1.5G"; resilvers say "148G resilvered".
+    repaired_match = (
+        re.search(r"repaired\s+([\d.]+\s*[KMGTP]?B?)", scan)
+        or re.search(r"([\d.]+\s*[KMGTP]?B?)\s+resilvered\b", scan)
+    )
     if repaired_match:
         val = repaired_match.group(1).strip()
         if val != "0B" and val != "0":

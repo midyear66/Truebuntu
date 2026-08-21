@@ -1,13 +1,22 @@
 import re
 import logging
-import subprocess
 
 from fastapi import APIRouter, HTTPException, Response, Depends, Request
 from pydantic import BaseModel
 
 from backend.database import get_db, admin_exists
 from backend.utils.rate_limit import limiter
-from backend.utils.shell import run
+from backend.utils.setup_claim import (
+    ensure_claim_token,
+    verify_claim_token,
+    clear_claim_token,
+)
+from backend.utils.system_users import (
+    host_user_exists,
+    create_host_user,
+    set_host_password,
+    set_samba_password,
+)
 from backend.utils.auth import (
     hash_password,
     verify_password,
@@ -52,11 +61,17 @@ class LoginRequest(BaseModel):
 class SetupRequest(BaseModel):
     username: str
     password: str
+    claim_token: str = ""
 
 
 @router.get("/setup-required")
 def setup_required():
-    return {"setup_required": not admin_exists()}
+    if admin_exists():
+        return {"setup_required": False}
+    # Mint and log the claim token on demand, not only at startup, so deleting
+    # the last admin on a running server still produces a usable token.
+    ensure_claim_token()
+    return {"setup_required": True, "claim_token_required": True}
 
 
 @router.post("/setup")
@@ -64,6 +79,23 @@ def setup_required():
 def setup(req: SetupRequest, request: Request, response: Response):
     if admin_exists():
         raise HTTPException(status_code=400, detail="Admin already exists")
+
+    # Guard the one endpoint that grants the appliance away for free. Ensure a
+    # token exists first, in case nothing has polled /setup-required yet.
+    ensure_claim_token()
+    if not verify_claim_token(req.claim_token):
+        logger.warning(
+            "Rejected first-run setup attempt with an invalid claim token from %s",
+            request.client.host if request.client else "unknown",
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Invalid or missing setup token. Run "
+                "'docker compose logs truebuntu' on the server to find it."
+            ),
+        )
+
     if not VALID_APP_USERNAME.match(req.username):
         raise HTTPException(status_code=400, detail="Username must be 2-32 alphanumeric characters, hyphens, or underscores")
     _validate_password(req.password)
@@ -81,6 +113,8 @@ def setup(req: SetupRequest, request: Request, response: Response):
         token_version = row["token_version"] if row else 0
     finally:
         db.close()
+
+    clear_claim_token()
 
     token = create_token(req.username, token_version)
     response.set_cookie(
@@ -307,31 +341,22 @@ def create_app_user(req: AppUserCreateRequest, admin: str = Depends(get_current_
     if req.create_smb_user:
         # Create system user (lowercase, sanitized)
         linux_name = re.sub(r"[^a-z0-9_-]", "_", req.username.lower())
-        check = run(["getent", "passwd", linux_name])
-        if check.ok:
-            # System user already exists, just add SMB
-            pass
-        else:
-            result = run(["useradd", "-m", linux_name])
-            if not result.ok:
-                smb_error = f"Failed to create system user: {result.stderr.strip()}"
+        if not host_user_exists(linux_name):
+            ok, err = create_host_user(linux_name, create_home=True)
+            if not ok:
+                smb_error = f"Failed to create system user: {err}"
         if not smb_error:
-            # Set system password
-            proc = subprocess.run(
-                ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "chpasswd"],
-                input=f"{linux_name}:{req.password}\n",
-                capture_output=True, text=True, timeout=10,
-            )
-            # Create SMB user
-            proc = subprocess.run(
-                ["smbpasswd", "-a", "-s", linux_name],
-                input=f"{req.password}\n{req.password}\n",
-                capture_output=True, text=True, timeout=10,
-            )
-            if proc.returncode == 0:
+            ok, err = set_host_password(linux_name, req.password)
+            if not ok:
+                # Previously discarded, so a failure here was reported as success
+                # and left an account nobody could log into.
+                smb_error = f"Failed to set system password: {err}"
+        if not smb_error:
+            ok, err = set_samba_password(linux_name, req.password)
+            if ok:
                 smb_created = True
             else:
-                smb_error = f"Failed to create SMB user: {proc.stderr.strip()}"
+                smb_error = f"Failed to create SMB user: {err}"
 
     logger.info(f"Admin '{admin}' created app user '{req.username}'" +
                 (f" with SMB user" if smb_created else ""))
