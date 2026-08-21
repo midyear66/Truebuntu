@@ -31,7 +31,7 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 
 **System** -- Services control, hostname/timezone/NTP (chrony with server/pool support, poll tuning, LAN NTP server mode, live sync quality stats), reboot/shutdown from the UI, package updates, journalctl log viewer, alerts (email, Slack, PagerDuty, Pushover, webhook), config export/import, TrueNAS Core migration (users, SMB shares, snapshot policies, scrub/cloud sync tasks), browser-based web shell
 
-**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, token revocation on logout/password change, audit logging, input validation with dangerous-character blocklists (NFS, DDNS, shares), path traversal protection via canonicalization, WebSocket origin validation, XSS-safe QR rendering
+**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, single-purpose tokens with session revocation enforced on every authenticated entry point including the web shell, audit logging, input validation with dangerous-character blocklists (NFS, DDNS, shares), path traversal protection via canonicalization, WebSocket origin validation, XSS-safe QR rendering
 
 **UI** -- Dark mode, collapsible sidebar, drag-and-drop dashboard, configurable polling interval
 
@@ -228,7 +228,7 @@ curl -fsSL https://raw.githubusercontent.com/midyear66/Truebuntu/main/install.sh
 │                    │  /api/network  /api/logs   │  │
 │                    │  /api/alerts   /api/repl.  │  │
 │                    │  /api/ddns     /api/shell  │  │
-│                    │  ...37 router modules      │  │
+│                    │  ...35 router modules      │  │
 │                    │                            │  │
 │                    │  SQLite (/data/nas.db)     │  │
 │                    └────────────────────────────┘  │
@@ -245,7 +245,7 @@ The container runs in **privileged mode** with **host network and PID namespace*
 |----------------------|--------------------------------|
 | `/etc/samba`         | SMB share configuration        |
 | `/etc/exports`       | NFS export configuration       |
-| `/etc/passwd` (ro)   | System user enumeration        |
+| `/etc/passwd`        | System user enumeration and creation |
 | `/etc/shadow` (ro)   | Password verification          |
 | `/etc/group`         | System group management        |
 | `/etc/gshadow` (ro)  | Group password verification    |

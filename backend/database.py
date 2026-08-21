@@ -69,6 +69,12 @@ def get_db() -> sqlite3.Connection:
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA foreign_keys=ON")
+    # WAL buys concurrent readers, not concurrent writers. Four independent
+    # writer populations share this file — the request threadpool, job worker
+    # threads, the snapshot scheduler, and the audit middleware — so without a
+    # busy timeout the second writer to arrive fails immediately with
+    # "database is locked" instead of waiting a few milliseconds for its turn.
+    db.execute("PRAGMA busy_timeout=5000")
     return db
 
 
