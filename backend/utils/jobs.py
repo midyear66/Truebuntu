@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timedelta
 
 from backend.database import get_db
-from backend.utils.shell import ALLOWED_COMMANDS, DANGEROUS_CHARS
+from backend.utils.shell import ALLOWED_COMMANDS
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,9 @@ class JobManager:
         if not cmd and not shell_cmd:
             raise ValueError("Must provide cmd or shell_cmd")
 
-        # shell_cmd bypasses DANGEROUS_CHARS checks — callers MUST use
-        # shlex.quote() on all user-supplied values embedded in the string.
-        # Prefer cmd (array) over shell_cmd whenever possible.
+        # shell_cmd runs through `sh -c`, so callers MUST shlex.quote() any
+        # user-supplied value they interpolate. Prefer cmd (an argv list, which
+        # never reaches a shell) whenever the command has no need of pipes.
         if shell_cmd and not cmd:
             logger.debug("Job submitted with shell_cmd — ensure caller used shlex.quote()")
 
@@ -48,9 +48,6 @@ class JobManager:
             binary = cmd[0].split("/")[-1]
             if binary not in ALLOWED_COMMANDS:
                 raise ValueError(f"Command not allowed: {binary}")
-            for arg in cmd[1:]:
-                if DANGEROUS_CHARS.search(arg):
-                    raise ValueError(f"Dangerous characters in argument: {arg}")
 
         db = get_db()
         try:

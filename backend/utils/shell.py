@@ -1,10 +1,14 @@
 import logging
 import subprocess
-import re
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+# A typo catcher, not a security boundary. Every admin of this appliance can
+# already run arbitrary commands as root on the host — through the web shell,
+# cron jobs, and init/shutdown scripts, all of which are features. What this set
+# buys is that a caller passing a mistyped or unexpected binary fails loudly here
+# instead of at the far end of a subprocess. See SECURITY.md for the real model.
 ALLOWED_COMMANDS = {
     "zpool",
     "zfs",
@@ -57,12 +61,6 @@ ALLOWED_COMMANDS = {
     "net",
 }
 
-# Note: Cron jobs and init/shutdown scripts may contain shell metacharacters
-# (pipes, redirects, etc.). Those routers use subprocess.run() directly with
-# nsenter instead of this module's run(), which blocks dangerous chars.
-
-DANGEROUS_CHARS = re.compile(r"[;|&$`]")
-
 
 @dataclass
 class ShellResult:
@@ -82,10 +80,6 @@ def run(args: list[str], timeout: int = 30, check: bool = False, stdin: str | No
     cmd = args[0].split("/")[-1]
     if cmd not in ALLOWED_COMMANDS:
         raise ValueError(f"Command not allowed: {cmd}")
-
-    for arg in args[1:]:
-        if DANGEROUS_CHARS.search(arg):
-            raise ValueError(f"Dangerous characters in argument: {arg}")
 
     logger.info(f"shell: {' '.join(args)}")
 
