@@ -293,6 +293,7 @@ The `.env` file controls runtime settings. Copy `.env.example` to `.env` before 
 | `SECRET_KEY`    | *(required)*                  | Secret used to sign JWT tokens. The app **will not start** if this is missing or set to a placeholder. Generate with `openssl rand -hex 24`. |
 | `DATABASE_PATH` | `/data/nas.db`                | Path to the SQLite database inside the container. |
 | `LOG_LEVEL`     | `info`                        | Uvicorn log level (`debug`, `info`, `warning`, `error`). |
+| `DASHBOARD_INTERVAL` | `5`                      | Seconds between dashboard snapshot collections. The collector only runs while a dashboard is open, and uses the shortest interval any connected viewer requested (clamped to 2-60s). |
 
 <details>
 <summary>API Overview</summary>
@@ -303,7 +304,7 @@ All endpoints are prefixed with `/api`. Authentication is required for all route
 |------------------|---------------------|-------------------------------------|
 | auth             | `/auth`             | Login, setup, session, app user mgmt|
 | totp             | `/auth/2fa`         | TOTP two-factor authentication      |
-| dashboard        | `/dashboard`        | System overview metrics             |
+| dashboard        | `/dashboard`        | System overview metrics; `/dashboard/stream` pushes snapshots over SSE |
 | pools            | `/pools`, `/disks`  | ZFS pool and available disk mgmt    |
 | datasets         | `/datasets`         | ZFS dataset CRUD                    |
 | snapshots        | `/snapshots`        | Snapshot and snapshot policy mgmt   |
