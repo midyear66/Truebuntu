@@ -510,14 +510,12 @@ export default function Dashboard() {
     useSensor(KeyboardSensor)
   )
 
-  const load = async () => {
-    try {
-      const res = await api.get('/dashboard')
-      setData(res.data)
+  const applySnapshot = (snapshot) => {
+      setData(snapshot)
 
       // Compute interface throughput deltas
       const now = Date.now()
-      const ifaces = res.data.interfaces || []
+      const ifaces = snapshot.interfaces || []
       if (prevIfaces.current && prevTime.current) {
         const elapsed = (now - prevTime.current) / 1000
         if (elapsed > 0) {
@@ -536,9 +534,15 @@ export default function Dashboard() {
       }
       prevIfaces.current = ifaces
       prevTime.current = now
+      setLoading(false)
+  }
+
+  const load = async () => {
+    try {
+      const res = await api.get('/dashboard')
+      applySnapshot(res.data)
     } catch (err) {
       console.error('Dashboard load error:', err)
-    } finally {
       setLoading(false)
     }
   }
@@ -567,12 +571,57 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (activeId) return // Don't poll mid-drag
-    load()
+    if (activeId) return // Don't stream mid-drag — reordering would fight updates
+
+    load() // First paint immediately, without waiting for the first stream frame.
+
     const seconds = parseInt(localStorage.getItem('poll-interval')) || 5
-    if (seconds <= 0) return // "Off" — no auto-polling
-    const interval = setInterval(load, seconds * 1000)
-    return () => clearInterval(interval)
+    if (seconds <= 0) return // "Off" — no live updates
+
+    // The server collects on a timer and pushes each new snapshot, so cost no
+    // longer scales with the number of open tabs. If the stream cannot be
+    // established — a buffering reverse proxy is the usual reason — fall back to
+    // the polling this replaced rather than leaving the dashboard frozen.
+    let source = null
+    let pollTimer = null
+    let cancelled = false
+
+    const startPolling = () => {
+      if (cancelled || pollTimer) return
+      pollTimer = setInterval(load, seconds * 1000)
+    }
+
+    try {
+      source = new EventSource(`/api/dashboard/stream?interval=${seconds}`)
+
+      source.onmessage = (event) => {
+        if (cancelled) return
+        try {
+          applySnapshot(JSON.parse(event.data))
+        } catch (err) {
+          console.error('Dashboard stream parse error:', err)
+        }
+      }
+
+      source.onerror = () => {
+        // EventSource retries on its own, but if the browser gives up
+        // (readyState CLOSED) we take over with polling.
+        if (source && source.readyState === EventSource.CLOSED) {
+          source.close()
+          source = null
+          startPolling()
+        }
+      }
+    } catch (err) {
+      console.error('Dashboard stream unavailable, falling back to polling:', err)
+      startPolling()
+    }
+
+    return () => {
+      cancelled = true
+      if (source) source.close()
+      if (pollTimer) clearInterval(pollTimer)
+    }
   }, [activeId, pollKey])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading dashboard...</div>

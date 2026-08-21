@@ -1,9 +1,13 @@
+import asyncio
 import json
 import logging
+import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 
 from backend.database import get_db
 from backend.utils.auth import get_current_user
@@ -35,8 +39,8 @@ def _cached(key: str, ttl: float, fn):
     return value
 
 
-@router.get("")
-def dashboard():
+def _collect_sections() -> dict:
+    """Run every collector concurrently and return one dashboard snapshot."""
     sections = {
         "system": _get_system_info,
         "cpu": _get_cpu_info,
@@ -54,6 +58,166 @@ def dashboard():
     with ThreadPoolExecutor(max_workers=len(sections)) as executor:
         futures = {key: executor.submit(fn) for key, fn in sections.items()}
         return {key: future.result() for key, future in futures.items()}
+
+
+# --- background collector ---------------------------------------------------
+#
+# Collecting a snapshot forks a dozen or so processes through nsenter. Doing that
+# per request meant the cost scaled with the number of open browser tabs, each
+# polling every five seconds. Now one background thread collects on a cadence and
+# every viewer reads the same snapshot, so the cost depends on how often we
+# collect rather than on how many people are looking.
+#
+# The thread only collects while somebody is subscribed. On an idle NAS with no
+# dashboard open it does nothing at all.
+
+DEFAULT_INTERVAL = float(os.environ.get("DASHBOARD_INTERVAL", "5"))
+MIN_INTERVAL = 2.0
+MAX_INTERVAL = 60.0
+IDLE_WAIT = 5.0
+KEEPALIVE_EVERY = 15.0
+
+
+class _Collector:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._snapshot: dict | None = None
+        self._collected_at = 0.0
+        self._version = 0
+        self._subscribers: dict[int, float] = {}
+        self._next_id = 1
+        self._wake = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    # -- lifecycle
+    def start(self):
+        with self._lock:
+            if self._thread is not None:
+                return
+            self._thread = threading.Thread(
+                target=self._loop, daemon=True, name="dashboard-collector"
+            )
+            self._thread.start()
+
+    # -- subscriptions
+    def subscribe(self, interval: float) -> int:
+        with self._lock:
+            sid = self._next_id
+            self._next_id += 1
+            self._subscribers[sid] = interval
+        self._wake.set()
+        return sid
+
+    def unsubscribe(self, sid: int):
+        with self._lock:
+            self._subscribers.pop(sid, None)
+
+    def _cadence(self) -> float | None:
+        """Seconds between collections, or None when nobody is watching."""
+        with self._lock:
+            if not self._subscribers:
+                return None
+            return max(MIN_INTERVAL, min(self._subscribers.values()))
+
+    # -- snapshot access
+    def peek(self) -> tuple[int, dict | None]:
+        """Latest snapshot without ever collecting. Safe on the event loop."""
+        with self._lock:
+            return self._version, self._snapshot
+
+    def get(self, max_age: float) -> dict:
+        """Latest snapshot, collecting synchronously if it is too stale.
+
+        Only called from threadpool request handlers, never the event loop.
+        """
+        with self._lock:
+            data = self._snapshot
+            age = time.monotonic() - self._collected_at
+        if data is not None and age <= max_age:
+            return data
+        return self.collect()
+
+    def collect(self) -> dict:
+        data = _collect_sections()
+        with self._lock:
+            self._snapshot = data
+            self._collected_at = time.monotonic()
+            self._version += 1
+        return data
+
+    def _loop(self):
+        while True:
+            cadence = self._cadence()
+            if cadence is None:
+                # Nobody watching: sleep until someone subscribes.
+                self._wake.wait(timeout=IDLE_WAIT)
+                self._wake.clear()
+                continue
+            try:
+                self.collect()
+            except Exception:
+                logger.exception("Dashboard collection failed")
+            self._wake.wait(timeout=cadence)
+            self._wake.clear()
+
+
+_collector = _Collector()
+
+
+def start_dashboard_collector():
+    _collector.start()
+    logger.info("Dashboard collector started")
+
+
+@router.get("")
+def dashboard():
+    """One-shot snapshot. Used on first paint and as the no-SSE fallback."""
+    return _collector.get(max_age=DEFAULT_INTERVAL)
+
+
+@router.get("/stream")
+async def dashboard_stream(request: Request, interval: float = DEFAULT_INTERVAL):
+    """Server-sent events: one message per new snapshot.
+
+    Replaces a full re-poll every few seconds per open tab. The client still
+    falls back to GET /dashboard if the stream cannot be established — a proxy
+    that buffers responses will break SSE and nothing else.
+    """
+    interval = max(MIN_INTERVAL, min(MAX_INTERVAL, interval))
+    sid = _collector.subscribe(interval)
+
+    async def events():
+        last_version = -1
+        last_keepalive = time.monotonic()
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                version, data = _collector.peek()
+                if data is not None and version != last_version:
+                    last_version = version
+                    last_keepalive = time.monotonic()
+                    yield f"data: {json.dumps(data)}\n\n"
+                elif time.monotonic() - last_keepalive > KEEPALIVE_EVERY:
+                    # Comment frame: keeps intermediaries from dropping an idle
+                    # connection without the client treating it as a snapshot.
+                    last_keepalive = time.monotonic()
+                    yield ": keepalive\n\n"
+
+                await asyncio.sleep(0.25)
+        finally:
+            _collector.unsubscribe(sid)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # --- System Info ---

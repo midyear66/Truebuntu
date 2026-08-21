@@ -1,24 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import api from '../api'
+import useResource from '../useResource'
 
 export default function InitShutdown() {
-  const [scripts, setScripts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: scripts, setData: setScripts, loading, error, setError, reload: load } =
+    useResource('/init-shutdown', { initial: [], errorMessage: 'Failed to load scripts' })
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', type: 'init', when_run: 'post', command: '', timeout: 30, enabled: true })
-  const [error, setError] = useState('')
-
-  const load = async () => {
-    try {
-      const res = await api.get('/init-shutdown')
-      setScripts(res.data)
-    } catch (err) {
-      setError('Failed to load scripts')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const resetForm = () => {
     setForm({ name: '', type: 'init', when_run: 'post', command: '', timeout: 30, enabled: true })
@@ -65,8 +54,6 @@ export default function InitShutdown() {
       setError(err.response?.data?.detail || 'Delete failed')
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 

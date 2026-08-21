@@ -1,5 +1,6 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, Fragment } from 'react'
 import api from '../api'
+import useResource from '../useResource'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const ChevronRight = () => (
@@ -15,27 +16,15 @@ const ChevronDown = () => (
 )
 
 export default function Disks() {
-  const [disks, setDisks] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: disks, setData: setDisks, loading, error, setError, reload: load } =
+    useResource('/disks', { initial: [], errorMessage: 'Failed to load disks' })
   const [expandedRows, setExpandedRows] = useState(new Set())
   const [smartDataMap, setSmartDataMap] = useState({})
   const [loadingDisk, setLoadingDisk] = useState(null)
   const [testing, setTesting] = useState(null)
-  const [error, setError] = useState('')
   const [prepareDialog, setPrepareDialog] = useState(null)
   const [preparing, setPreparing] = useState(false)
   const [prepareSuccess, setPrepareSuccess] = useState('')
-
-  const load = async () => {
-    try {
-      const res = await api.get('/disks')
-      setDisks(res.data)
-    } catch (err) {
-      setError('Failed to load disks')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const fetchSmart = async (diskName) => {
     setLoadingDisk(diskName)
@@ -101,8 +90,6 @@ export default function Disks() {
       setPreparing(false)
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 

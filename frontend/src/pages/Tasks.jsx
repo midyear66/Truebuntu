@@ -1,26 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import api from '../api'
+import useResource from '../useResource'
 import useJobPoller from '../useJobPoller'
 
 export default function Tasks() {
-  const [tasks, setTasks] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: tasks, setData: setTasks, loading, error, setError, reload: load } =
+    useResource('/tasks', { initial: [], errorMessage: 'Failed to load tasks' })
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ name: '', type: 'scrub', schedule: '0 0 * * 0', config: {} })
   const [configStr, setConfigStr] = useState('{}')
-  const [error, setError] = useState('')
   const { submitJob, cancelJob, getJobForResource } = useJobPoller()
-
-  const load = async () => {
-    try {
-      const res = await api.get('/tasks')
-      setTasks(res.data)
-    } catch (err) {
-      setError('Failed to load tasks')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const createTask = async (e) => {
     e.preventDefault()
@@ -57,8 +46,6 @@ export default function Tasks() {
       setError(err.response?.data?.detail || 'Delete failed')
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 

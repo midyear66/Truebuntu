@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api'
+import useResource from '../useResource'
 import StatusBadge from '../components/StatusBadge'
 
 const CONFIG_ROUTES = {
@@ -30,22 +31,10 @@ const INSTALL_COMMANDS = {
 
 export default function Services() {
   const navigate = useNavigate()
-  const [services, setServices] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: services, setData: setServices, loading, error, setError, reload: load } =
+    useResource('/services', { initial: [], errorMessage: 'Failed to load services' })
   const [acting, setActing] = useState(null)
-  const [error, setError] = useState('')
   const [installHint, setInstallHint] = useState(null)
-
-  const load = async () => {
-    try {
-      const res = await api.get('/services')
-      setServices(res.data)
-    } catch (err) {
-      setError('Failed to load services')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const performAction = async (name, action) => {
     setActing(`${name}-${action}`)
@@ -58,8 +47,6 @@ export default function Services() {
       setActing(null)
     }
   }
-
-  useEffect(() => { load() }, [])
 
   if (loading) return <div className="text-gray-500 dark:text-gray-400">Loading...</div>
 
