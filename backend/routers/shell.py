@@ -9,11 +9,51 @@ import json
 import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from backend.utils.auth import decode_token, COOKIE_NAME
+from backend.utils.auth import resolve_session, COOKIE_NAME
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shell", tags=["shell"])
+
+# How long to wait for the PTY child to exit at each escalation step.
+REAP_TIMEOUT = 5.0
+
+
+async def _reap(child_pid: int) -> None:
+    """Wait for the PTY child to exit — escalating to SIGKILL — and reap it.
+
+    A bare waitpid(WNOHANG) straight after SIGTERM almost always returns (0, 0),
+    because the child has not exited yet. That leaves a zombie for the life of
+    the container, and docker-compose caps us at 256 PIDs, so one leaked zombie
+    per terminal session eventually starves every subprocess call in the app.
+
+    Only ever waits on our own child_pid: a broad waitpid(-1) would steal exit
+    statuses from subprocess.Popen children owned by the job manager.
+    """
+    killed = False
+    deadline = asyncio.get_running_loop().time() + REAP_TIMEOUT
+    while True:
+        try:
+            pid, _ = os.waitpid(child_pid, os.WNOHANG)
+        except ChildProcessError:
+            return  # already reaped
+        except OSError:
+            return
+        if pid == child_pid:
+            return
+
+        if asyncio.get_running_loop().time() >= deadline:
+            if killed:
+                logger.warning("Shell child %d survived SIGKILL; not reaped", child_pid)
+                return
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except OSError:
+                return
+            killed = True
+            deadline = asyncio.get_running_loop().time() + REAP_TIMEOUT
+
+        await asyncio.sleep(0.05)
 
 
 @router.websocket("/ws")
@@ -28,9 +68,10 @@ async def shell_ws(websocket: WebSocket):
             await websocket.close(code=4403, reason="Origin not allowed")
             return
 
-    # Auth: extract nas_session cookie, decode JWT, reject if invalid
-    token = websocket.cookies.get(COOKIE_NAME)
-    username = decode_token(token) if token else None
+    # Auth: resolve the nas_session cookie through the same path the HTTP
+    # dependency uses, so a session revoked by logout or a password change
+    # cannot still open a root shell for the rest of the token's 24h lifetime.
+    username = resolve_session(websocket.cookies.get(COOKIE_NAME))
     if not username:
         await websocket.close(code=4401, reason="Not authenticated")
         return
@@ -52,12 +93,19 @@ async def shell_ws(websocket: WebSocket):
     child_pid, master_fd = pty.fork()
 
     if child_pid == 0:
-        # Child process: set TERM and exec nsenter into host namespace
-        os.environ["TERM"] = "xterm-256color"
-        os.execvp("nsenter", [
-            "nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p",
-            "--", "/bin/bash",
-        ])
+        # Child process: set TERM and exec nsenter into the host namespace.
+        # execvp raises rather than returns on failure, so every statement here
+        # must sit inside the try — otherwise a missing nsenter drops the forked
+        # child back into the parent's async handler as a duplicate process
+        # sharing its event loop and database connections.
+        try:
+            os.environ["TERM"] = "xterm-256color"
+            os.execvp("nsenter", [
+                "nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p",
+                "--", "/bin/bash",
+            ])
+        except BaseException:
+            pass
         os._exit(1)
 
     loop = asyncio.get_event_loop()
@@ -115,8 +163,5 @@ async def shell_ws(websocket: WebSocket):
             os.close(master_fd)
         except OSError:
             pass
-        try:
-            os.waitpid(child_pid, os.WNOHANG)
-        except OSError:
-            pass
+        await _reap(child_pid)
         logger.info("Shell session ended for user %s", username)

@@ -249,6 +249,7 @@ class JobManager:
 
             # Wait for completion with timeout and cancel checks
             start_time = time.time()
+            timed_out = False
             while proc.poll() is None:
                 if cancel_event.is_set():
                     try:
@@ -271,6 +272,7 @@ class JobManager:
                             pass
                         proc.wait()
                     stderr_chunks.append(f"\nJob timed out after {timeout}s\n")
+                    timed_out = True
                     break
                 time.sleep(0.5)
 
@@ -284,7 +286,11 @@ class JobManager:
             if cancel_event.is_set():
                 status = "cancelled"
                 error_msg = "Cancelled by user"
-            elif timeout and (time.time() - start_time) > timeout:
+            elif timed_out:
+                # Recorded when we killed the process, not re-derived from the
+                # clock: the stream joins above can add up to 10s, which would
+                # otherwise mark a job that exited 0 just under the wire as a
+                # timeout — and that false failure is what fires the alert email.
                 status = "failed"
                 error_msg = f"Timed out after {timeout}s"
             elif returncode == 0:

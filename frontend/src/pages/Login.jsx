@@ -3,7 +3,7 @@ import api from '../api'
 import logo from '../assets/logo.svg'
 import logoDark from '../assets/logo-dark.svg'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, notice = '' }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -57,6 +57,7 @@ export default function Login({ onLogin }) {
 
         {!needs2fa ? (
           <form onSubmit={handleSubmit}>
+            {notice && !error && <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 text-sm rounded">{notice}</div>}
             {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">{error}</div>}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Username</label>

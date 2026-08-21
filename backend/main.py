@@ -11,7 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from backend.database import init_db, get_db
-from backend.utils.auth import decode_token, COOKIE_NAME
+from backend.utils.auth import resolve_session, COOKIE_NAME
 from backend.utils.rate_limit import limiter
 from backend.routers import (
     auth, pools, datasets, snapshots, shares, nfs,
@@ -63,12 +63,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
             and request.url.path.startswith("/api/")
             and response.status_code < 400
         ):
-            username = "anonymous"
-            token = request.cookies.get(COOKIE_NAME)
-            if token:
-                user = decode_token(token)
-                if user:
-                    username = user
+            # Preferred source: stamped by get_current_user() during authorization.
+            # It is the only one that still names the actor for logout and password
+            # change, which revoke the session as part of doing their job.
+            username = getattr(request.state, "username", None)
+            if not username:
+                # Falls back to re-resolving the cookie. Unauthenticated endpoints
+                # (login, first-run setup) legitimately have neither.
+                username = resolve_session(request.cookies.get(COOKIE_NAME)) or "anonymous"
             try:
                 db = get_db()
                 db.execute(
@@ -149,6 +151,11 @@ app.include_router(smb_users.router, prefix="/api")
 @app.on_event("startup")
 def startup():
     init_db()
+    # Print the first-run claim token before anything can reach /auth/setup.
+    from backend.database import admin_exists
+    from backend.utils.setup_claim import ensure_claim_token
+    if not admin_exists():
+        ensure_claim_token()
     from backend.utils.jobs import JobManager
     JobManager().cleanup_stale()
     from backend.utils.snapshot_scheduler import start_snapshot_scheduler

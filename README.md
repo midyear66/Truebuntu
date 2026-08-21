@@ -31,7 +31,7 @@ A lightweight, self-hosted NAS management web UI for Ubuntu-based ZFS storage se
 
 **System** -- Services control, hostname/timezone/NTP (chrony with server/pool support, poll tuning, LAN NTP server mode, live sync quality stats), reboot/shutdown from the UI, package updates, journalctl log viewer, alerts (email, Slack, PagerDuty, Pushover, webhook), config export/import, TrueNAS Core migration (users, SMB shares, snapshot policies, scrub/cloud sync tasks), browser-based web shell
 
-**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), rate limiting, token revocation on logout/password change, audit logging, input validation with dangerous-character blocklists (NFS, DDNS, shares), path traversal protection via canonicalization, WebSocket origin validation, XSS-safe QR rendering
+**Security** -- JWT auth with HTTP-only cookies, TOTP 2FA with encrypted secrets, role-based access (admin/user), one-time setup token gating first-run admin creation, rate limiting, single-purpose tokens with session revocation enforced on every authenticated entry point including the web shell, audit logging, input validation with dangerous-character blocklists (NFS, DDNS, shares), path traversal protection via canonicalization, WebSocket origin validation, XSS-safe QR rendering
 
 **UI** -- Dark mode, collapsible sidebar, drag-and-drop dashboard, configurable polling interval
 
@@ -46,6 +46,18 @@ curl -fsSL https://raw.githubusercontent.com/midyear66/Truebuntu/main/install.sh
 This installs all host dependencies (Docker, ZFS, Samba, NFS, Chrony, smartmontools, rclone, netplan), clones the repo to a `truebuntu/` directory under your current working directory, generates a `.env` with a random secret key and your UID/GID, and starts the container. The install directory is owned by the calling user (detected via `SUDO_USER`).
 
 Once complete, open `http://<your-server-ip>` in a browser and create your admin account.
+
+Creating that account requires a **one-time setup token**, which the installer prints alongside
+the access URL. It is also written to the container log, so you can retrieve it at any time:
+
+```bash
+docker compose logs truebuntu | grep -A6 'FIRST-RUN SETUP'
+```
+
+The token exists because `/api/auth/setup` has to accept unauthenticated requests — there is no
+account to authenticate against yet. Without it, anyone who reached the server before you did
+could claim the admin account, and the admin account has a root shell on the host. Restarting the
+container issues a fresh token and prints it again.
 
 <details>
 <summary>Manual install</summary>
@@ -228,7 +240,7 @@ curl -fsSL https://raw.githubusercontent.com/midyear66/Truebuntu/main/install.sh
 │                    │  /api/network  /api/logs   │  │
 │                    │  /api/alerts   /api/repl.  │  │
 │                    │  /api/ddns     /api/shell  │  │
-│                    │  ...37 router modules      │  │
+│                    │  ...35 router modules      │  │
 │                    │                            │  │
 │                    │  SQLite (/data/nas.db)     │  │
 │                    └────────────────────────────┘  │
@@ -245,7 +257,7 @@ The container runs in **privileged mode** with **host network and PID namespace*
 |----------------------|--------------------------------|
 | `/etc/samba`         | SMB share configuration        |
 | `/etc/exports`       | NFS export configuration       |
-| `/etc/passwd` (ro)   | System user enumeration        |
+| `/etc/passwd`        | System user enumeration and creation |
 | `/etc/shadow` (ro)   | Password verification          |
 | `/etc/group`         | System group management        |
 | `/etc/gshadow` (ro)  | Group password verification    |
@@ -340,7 +352,19 @@ npm install
 npm run dev
 ```
 
-The Vite dev server runs on `http://localhost:5173` and proxies `/api` requests to the FastAPI backend on port 8000. In production the React build is served as static files by FastAPI directly.
+The Vite dev server runs on `http://localhost:5173` and proxies `/api` requests to the FastAPI backend on port 80. In production the React build is served as static files by FastAPI directly.
+
+### Tests
+
+```bash
+pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+SECRET_KEY=anything-non-empty pytest
+```
+
+The suite covers the pure logic that is cheapest to get wrong and most expensive to be wrong
+about: the `zpool`/`zfs` output parsers, session-token validation and revocation, the first-run
+setup token, and the background job runner's outcome classification. Nothing in it needs ZFS,
+Docker, or root. GitHub Actions runs it on every push along with a full image build.
 
 ## Troubleshooting
 
